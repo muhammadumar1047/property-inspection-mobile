@@ -1,0 +1,74 @@
+name: primesoftware
+description: "A professional property inspection application."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  
+  # State Management
+  get: ^4.6.6
+  
+  # Local Storage
+  get_storage: ^2.1.1
+  
+  # Image Picker
+  image_picker: ^1.0.7
+  
+  # UI Components
+  google_fonts: ^6.1.0
+  flutter_launcher_icons: ^0.14.4
+  change_app_package_name: ^1.5.0
+  
+  # Maps
+  google_maps_flutter: ^2.15.0
+  
+  # Location
+  location: ^8.0.1
+  
+  # Permissions
+  permission_handler: ^12.0.1
+  
+  # Charts
+  fl_chart: ^0.69.0
+  
+  # HTTP Client
+  dio: ^5.7.0
+  connectivity_plus: ^7.0.0
+  shared_preferences: ^2.5.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/inspectLogo.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
+  web:
+    generate: true
+    image_path: "assets/images/inspectLogo.png"
+    background_color: "#hexcode"
+    theme_color: "#hexcode"
+  windows:
+    generate: true
+    image_path: "assets/images/inspectLogo.png"
+    icon_size: 48 # min:48, max:256, default: 48
+  macos:
+    generate: true
+    image_path: "assets/images/inspectLogo.png"
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/
