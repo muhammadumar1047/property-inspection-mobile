@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../data/models/inspection_model.dart';
 import '../controllers/inspection_list_controller.dart';
 
 class InspectionListScreen extends GetView<InspectionListController> {
@@ -34,18 +35,18 @@ class InspectionListScreen extends GetView<InspectionListController> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildHeader(),
-          _buildStatusFilter(),
-          Expanded(
-            child: Obx(() => controller.isMapView.value 
-              ? _buildMapView() 
-              : _buildListView()
-            ),
-          ),
-        ],
-      ),
+      body: Obx(() {
+        if (controller.isMapView.value) {
+          return _buildMapView();
+        }
+        return Column(
+          children: [
+            _buildHeader(),
+            _buildStatusFilter(),
+            Expanded(child: _buildListView()),
+          ],
+        );
+      }),
     );
   }
 
@@ -289,149 +290,226 @@ class InspectionListScreen extends GetView<InspectionListController> {
   }
 
   Widget _buildMapView() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            GoogleMap(
-              onMapCreated: controller.onMapCreated,
-              initialCameraPosition: const CameraPosition(
-                target: LatLng(37.7749, -122.4194), // San Francisco
-                zoom: 12,
+    final coordList = controller.inspectionsWithCoords;
+    return Column(
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              SizedBox.expand(
+                child: Obx(() => GoogleMap(
+                  onMapCreated: controller.onMapCreated,
+                  initialCameraPosition: CameraPosition(
+                    target: coordList.isNotEmpty
+                        ? LatLng(coordList.first.property!.latitude!,
+                            coordList.first.property!.longitude!)
+                        : const LatLng(-33.8688, 151.2093),
+                    zoom: 14,
+                  ),
+                  markers: controller.markers.toSet(),
+                  mapType: MapType.normal,
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: false,
+                  zoomControlsEnabled: false,
+                )),
               ),
-              markers: controller.markers.toSet(),
-              mapType: MapType.normal,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: false,
-              zoomControlsEnabled: false,
-            ),
-            Positioned(
-              bottom: 20,
-              left: 20,
-              right: 20,
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+              Positioned(
+                top: MediaQuery.of(Get.context!).padding.top + 8,
+                left: 12,
+                right: 12,
+                child: Row(
                   children: [
-                    const Text(
-                      '3711 Western Avenue',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Text(
-                          'Type',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const Spacer(),
-                        const Text(
-                          'Entry',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Text(
-                          'Date',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const Spacer(),
-                        const Text(
-                          'Thu 29 Apr',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Text(
-                          'Status',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.warning.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'Pending',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.warning,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Get.toNamed('/inspection-detail'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Open Inspection →',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
+                    _mapIconButton(Icons.arrow_back, () => Get.back()),
+                    const Spacer(),
+                    _mapIconButton(Icons.list, controller.toggleView),
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+        Container(
+          color: AppColors.background,
+          height: 200,
+          child: Obx(() {
+            final items = controller.inspections;
+            if (items.isEmpty) {
+              return const Center(
+                child: Text('No inspections found',
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 13)),
+              );
+            }
+            return PageView.builder(
+              controller: controller.pageController,
+              itemCount: items.length,
+              onPageChanged: controller.onPageChanged,
+              physics: const PageScrollPhysics(),
+              itemBuilder: (_, i) => _buildMapCard(items[i], i),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _mapIconButton(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 8,
+                offset: const Offset(0, 2))
+          ],
+        ),
+        child: Icon(icon, color: AppColors.textPrimary, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildMapCard(InspectionModel item, int i) {
+    final statusColor =
+        item.isPending ? const Color(0xFFF59E0B) : AppColors.primary;
+    return Obx(() {
+      final isSelected = controller.selectedIndex.value == i;
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        margin: EdgeInsets.fromLTRB(8, isSelected ? 0 : 12, 8, isSelected ? 0 : 12),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.border,
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-      ),
-    );
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8, height: 8,
+                    decoration: BoxDecoration(
+                        color: statusColor, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item.propertyAddress,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      item.statusLabel,
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: statusColor),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.calendar_today,
+                      size: 12, color: AppColors.textSecondary),
+                  const SizedBox(width: 4),
+                  Text(
+                    item.inspectionDate.split('T').first,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(width: 12),
+                  const Icon(Icons.access_time,
+                      size: 12, color: AppColors.textSecondary),
+                  const SizedBox(width: 4),
+                  Text(
+                    item.inspectionTime,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(
+                      item.typeLabel,
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    item.inspectorName,
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () =>
+                      Get.toNamed('/inspection-detail', arguments: item),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Open Inspection →',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 
 

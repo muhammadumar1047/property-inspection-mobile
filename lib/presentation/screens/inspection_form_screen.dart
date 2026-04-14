@@ -19,6 +19,33 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
   int _selectedArea = 0;
   late InspectionFormController _ctrl;
 
+  // inline comment input state: key = 'aIdx-iIdx'
+  final Map<String, bool> _commentInputVisible = {};
+  final Map<String, TextEditingController> _commentControllers = {};
+
+  TextEditingController _commentCtrl(String ik) {
+    _commentControllers[ik] ??= TextEditingController();
+    return _commentControllers[ik]!;
+  }
+
+  void _toggleCommentInput(String ik, {String prefill = ''}) {
+    setState(() {
+      final wasVisible = _commentInputVisible[ik] == true;
+      _commentInputVisible[ik] = !wasVisible;
+      if (!wasVisible) {
+        _commentCtrl(ik).text = prefill;
+      }
+    });
+  }
+
+  void _submitInlineComment(String ik, int aIdx, int iIdx) {
+    final text = _commentCtrl(ik).text.trim();
+    if (text.isNotEmpty) _ctrl.addComment(aIdx, iIdx, text);
+    _commentCtrl(ik).clear();
+    _ctrl.stopListening();
+    setState(() => _commentInputVisible[ik] = false);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +70,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    for (final c in _commentControllers.values) c.dispose();
     super.dispose();
   }
 
@@ -450,6 +478,8 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
 
   Widget _buildCommentsSection(int aIdx, int iIdx, InspectionFormController c) {
     final comments = c.getComments(aIdx, iIdx);
+    final ik = '$aIdx-$iIdx';
+    final inputVisible = _commentInputVisible[ik] == true;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -459,16 +489,82 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
             const Text('Comments',
                 style: TextStyle(
                     fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-            TextButton.icon(
-              onPressed: () => _showAddCommentDialog(aIdx, iIdx),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Add', style: TextStyle(fontSize: 12)),
-              style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 8)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // AI button
+                Obx(() {
+                  final loading = c.isGeneratingAi[ik] == true;
+                  return GestureDetector(
+                    onTap: loading
+                        ? null
+                        : () async {
+                            final t = c.template.value;
+                            if (t == null) return;
+                            final itemName = t.reportAreas[aIdx].reportItems[iIdx].name;
+                            final suggestion = await c.generateAiComment(aIdx, iIdx, itemName);
+                            if (suggestion != null) {
+                              _commentCtrl(ik).text = suggestion;
+                              if (_commentInputVisible[ik] != true) {
+                                setState(() => _commentInputVisible[ik] = true);
+                              }
+                            }
+                          },
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: loading
+                            ? null
+                            : const LinearGradient(
+                                colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)]),
+                        color: loading ? AppColors.border : null,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: loading
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppColors.primary))
+                          : const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('✨', style: TextStyle(fontSize: 11)),
+                                SizedBox(width: 3),
+                                Text('AI',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white)),
+                              ],
+                            ),
+                    ),
+                  );
+                }),
+                // Add / Cancel toggle
+                TextButton.icon(
+                  onPressed: () {
+                    if (inputVisible) {
+                      _ctrl.stopListening();
+                      _commentCtrl(ik).clear();
+                      setState(() => _commentInputVisible[ik] = false);
+                    } else {
+                      _toggleCommentInput(ik);
+                    }
+                  },
+                  icon: Icon(inputVisible ? Icons.close : Icons.add, size: 16),
+                  label: Text(inputVisible ? 'Cancel' : 'Add',
+                      style: const TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                      foregroundColor: inputVisible ? AppColors.error : AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 8)),
+                ),
+              ],
             ),
           ],
         ),
+        // Existing comments list
         ...comments.asMap().entries.map((e) => Container(
               margin: const EdgeInsets.only(top: 6),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -491,8 +587,121 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
                 ],
               ),
             )),
+        // Inline input — shown below comments when Add is tapped
+        if (inputVisible) ..._buildInlineCommentInput(ik, aIdx, iIdx),
       ],
     );
+  }
+
+  List<Widget> _buildInlineCommentInput(String ik, int aIdx, int iIdx) {
+    return [
+      const SizedBox(height: 8),
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.primary.withAlpha(80)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _commentCtrl(ik),
+              autofocus: true,
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              maxLines: 3,
+              minLines: 1,
+              decoration: InputDecoration(
+                hintText: 'Write a comment...',
+                hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 12),
+                filled: true,
+                fillColor: AppColors.cardBg,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.primary)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                // Mic button
+                Obx(() {
+                  final listening = _ctrl.isListening.value;
+                  return GestureDetector(
+                    onTap: () {
+                      if (listening) {
+                        _ctrl.stopListening();
+                      } else {
+                        _ctrl.startListening((words) {
+                          setState(() {
+                            _commentCtrl(ik).text = words;
+                            _commentCtrl(ik).selection = TextSelection.fromPosition(
+                                TextPosition(offset: _commentCtrl(ik).text.length));
+                          });
+                        });
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: listening ? Colors.red.shade50 : AppColors.cardBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: listening ? Colors.red : AppColors.border),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            listening ? Icons.stop_circle : Icons.mic,
+                            size: 16,
+                            color: listening ? Colors.red : AppColors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            listening ? 'Stop' : 'Speak',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: listening ? Colors.red : AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                const Spacer(),
+                // Send button
+                ElevatedButton(
+                  onPressed: () => _submitInlineComment(ik, aIdx, iIdx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Add Comment',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ];
   }
 
   Widget _buildPhotosSection(int aIdx, int iIdx, InspectionFormController c) {
@@ -508,15 +717,41 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
                     fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
             Row(
               children: [
+                GestureDetector(
+                  onTap: () => c.quickCapture(aIdx, iIdx),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)]),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.bolt, size: 14, color: Colors.white),
+                        SizedBox(width: 3),
+                        Text('Quick',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
                 IconButton(
                   onPressed: () => c.pickPhoto(aIdx, iIdx, ImageSource.camera),
                   icon: const Icon(Icons.camera_alt, size: 18),
+                  tooltip: 'Single photo',
                   style: IconButton.styleFrom(
                       foregroundColor: AppColors.primary, padding: EdgeInsets.zero),
                 ),
                 IconButton(
                   onPressed: () => c.pickPhoto(aIdx, iIdx, ImageSource.gallery),
                   icon: const Icon(Icons.photo_library, size: 18),
+                  tooltip: 'Pick multiple from gallery',
                   style: IconButton.styleFrom(
                       foregroundColor: AppColors.primary, padding: EdgeInsets.zero),
                 ),
@@ -524,77 +759,148 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
             ),
           ],
         ),
-        if (photos.isNotEmpty)
+        if (photos.isNotEmpty) ...[
+          const SizedBox(height: 8),
           SizedBox(
-            height: 90,
+            height: 110,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: photos.length,
-              itemBuilder: (_, idx) => Container(
-                margin: const EdgeInsets.only(right: 8),
-                child: Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(File(photos[idx]),
-                          width: 90, height: 90, fit: BoxFit.cover),
-                    ),
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: GestureDetector(
-                        onTap: () => c.removePhoto(aIdx, iIdx, idx),
-                        child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                          child: const Icon(Icons.close, size: 12, color: Colors.white),
+              itemBuilder: (_, idx) {
+                final label = c.getPhotoLabel(aIdx, iIdx, idx);
+                return GestureDetector(
+                  onTap: () => _showLabelEditor(aIdx, iIdx, idx, c),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    width: 90,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(photos[idx]),
+                                width: 90,
+                                height: 90,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            // Label badge on image
+                            if (label.isNotEmpty)
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 2),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xCC000000),
+                                    borderRadius: BorderRadius.vertical(
+                                        bottom: Radius.circular(8)),
+                                  ),
+                                  child: Text(
+                                    label,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            // Edit label icon
+                            Positioned(
+                              bottom: 4,
+                              right: 4,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: label.isNotEmpty
+                                      ? AppColors.primary
+                                      : Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  label.isNotEmpty ? Icons.edit : Icons.label_outline,
+                                  size: 10,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            // Delete button
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () => c.removePhoto(aIdx, iIdx, idx),
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                      color: Colors.red, shape: BoxShape.circle),
+                                  child: const Icon(Icons.close,
+                                      size: 12, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
+                        const SizedBox(height: 3),
+                        Text(
+                          label.isEmpty ? 'Tap to label' : label,
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: label.isEmpty
+                                ? AppColors.textHint
+                                : AppColors.primary,
+                            fontWeight: label.isEmpty
+                                ? FontWeight.normal
+                                : FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
           ),
+        ],
       ],
     );
   }
 
-  void _showAddCommentDialog(int aIdx, int iIdx) {
-    String comment = '';
-    showDialog(
+  void _showLabelEditor(int aIdx, int iIdx, int photoIdx, InspectionFormController c) {
+    final current = c.getPhotoLabel(aIdx, iIdx, photoIdx);
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBg,
-        title: const Text('Add Comment',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-        content: TextField(
-          autofocus: true,
-          style: const TextStyle(color: AppColors.textPrimary),
-          decoration: InputDecoration(
-            hintText: 'Enter comment',
-            hintStyle: const TextStyle(color: AppColors.textHint),
-            filled: true,
-            fillColor: AppColors.surface,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-          onChanged: (v) => comment = v,
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary))),
-          TextButton(
-            onPressed: () {
-              if (comment.trim().isNotEmpty) _ctrl.addComment(aIdx, iIdx, comment.trim());
-              Navigator.pop(ctx);
-            },
-            child: const Text('Add', style: TextStyle(color: AppColors.primary)),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: AppColors.cardBg,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => _LabelEditorSheet(
+        initialLabel: current,
+        photoPath: c.getPhotos(aIdx, iIdx)[photoIdx],
+        onSave: (label) {
+          c.setPhotoLabel(aIdx, iIdx, photoIdx, label);
+          Navigator.pop(ctx);
+        },
+        onRemove: current.isNotEmpty
+            ? () {
+                c.setPhotoLabel(aIdx, iIdx, photoIdx, '');
+                Navigator.pop(ctx);
+              }
+            : null,
       ),
     );
   }
+
+
 
   Widget _buildBottomBar(ReportTemplate t) {
     final total = t.reportAreas.length;
@@ -657,6 +963,132 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
                       _selectedArea == total - 1 ? 'Submit Report' : 'Next →',
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LabelEditorSheet extends StatefulWidget {
+  final String initialLabel;
+  final String photoPath;
+  final void Function(String) onSave;
+  final VoidCallback? onRemove;
+
+  const _LabelEditorSheet({
+    required this.initialLabel,
+    required this.photoPath,
+    required this.onSave,
+    this.onRemove,
+  });
+
+  @override
+  State<_LabelEditorSheet> createState() => _LabelEditorSheetState();
+}
+
+class _LabelEditorSheetState extends State<_LabelEditorSheet> {
+  late final TextEditingController _tc;
+
+  @override
+  void initState() {
+    super.initState();
+    _tc = TextEditingController(text: widget.initialLabel);
+  }
+
+  @override
+  void dispose() {
+    _tc.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)]),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.label, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 12),
+              const Text('Photo Label',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600)),
+              const Spacer(),
+              if (widget.onRemove != null)
+                TextButton(
+                  onPressed: widget.onRemove,
+                  child: const Text('Remove',
+                      style: TextStyle(color: AppColors.error, fontSize: 12)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.file(
+              File(widget.photoPath),
+              height: 140,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _tc,
+            autofocus: true,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'e.g. Water damage, Crack in wall...',
+              hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
+              filled: true,
+              fillColor: AppColors.surface,
+              prefixIcon:
+                  const Icon(Icons.edit_note, color: AppColors.primary, size: 20),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border)),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border)),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.primary)),
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => widget.onSave(_tc.text),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Save Label',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
         ],

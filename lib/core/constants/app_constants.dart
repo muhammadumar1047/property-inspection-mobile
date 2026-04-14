@@ -1,8 +1,8 @@
 class AppConstants {
   static const String appName = 'Inpect Pro';
-  // static const String baseUrl = 'http://ec2-52-62-164-129.ap-southeast-2.compute.amazonaws.com:5000';
+  static const String baseUrl = 'http://ec2-52-62-164-129.ap-southeast-2.compute.amazonaws.com:5000';
   // For web build
-  static const String baseUrl = "/api";
+  // static const String baseUrl = "/api";
   static const double paddingSmall = 8.0;
   static const double paddingMedium = 16.0;
   static const double paddingLarge = 24.0;

@@ -1,8 +1,12 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import '../../data/models/inspection_model.dart';
 import '../../data/models/report_template_model.dart';
 import '../../data/services/api_service.dart';
@@ -12,6 +16,10 @@ import '../../data/services/storage_service.dart';
 class InspectionFormController extends GetxController {
   final _api = ApiService();
   final _picker = ImagePicker();
+  final _speech = SpeechToText();
+
+  final isListening = false.obs;
+  final isGeneratingAi = <String, bool>{}.obs; // key: 'aIdx-iIdx'
 
   final Rxn<InspectionModel> inspection = Rxn<InspectionModel>();
   final Rxn<ReportTemplate> template = Rxn<ReportTemplate>();
@@ -25,6 +33,8 @@ class InspectionFormController extends GetxController {
   final Map<String, List<String>> commentValues = {};
   // key: 'areaIdx-itemIdx' → List<String> (local paths or uploaded URLs)
   final Map<String, List<String>> photoValues = {};
+  // key: 'areaIdx-itemIdx-photoIdx' → label text
+  final Map<String, String> photoLabels = {};
   // key: 'areaIdx-itemIdx' → bool
   final Map<String, bool> expandedState = {};
 
@@ -75,6 +85,7 @@ class InspectionFormController extends GetxController {
     conditionValues.clear();
     commentValues.clear();
     photoValues.clear();
+    photoLabels.clear();
     expandedState.clear();
     for (var aIdx = 0; aIdx < t.reportAreas.length; aIdx++) {
       final area = t.reportAreas[aIdx];
@@ -125,17 +136,251 @@ class InspectionFormController extends GetxController {
   List<String> getPhotos(int a, int i) => photoValues[_ik(a, i)] ?? [];
 
   Future<void> pickPhoto(int a, int i, ImageSource source) async {
-    final file = await _picker.pickImage(source: source, imageQuality: 80);
-    if (file != null) {
-      photoValues[_ik(a, i)] ??= [];
-      photoValues[_ik(a, i)]!.add(file.path);
-      update(['form']);
+    if (source == ImageSource.gallery) {
+      final files = await _picker.pickMultiImage(imageQuality: 80);
+      if (files.isNotEmpty) {
+        photoValues[_ik(a, i)] ??= [];
+        photoValues[_ik(a, i)]!.addAll(files.map((f) => f.path));
+        update(['form']);
+      }
+    } else {
+      final file = await _picker.pickImage(source: source, imageQuality: 80);
+      if (file != null) {
+        photoValues[_ik(a, i)] ??= [];
+        photoValues[_ik(a, i)]!.add(file.path);
+        update(['form']);
+      }
     }
   }
 
+  /// Quick capture: keeps opening camera until user taps Done.
+  /// Each captured photo is added to the list immediately.
+  Future<void> quickCapture(int a, int i) async {
+    photoValues[_ik(a, i)] ??= [];
+    while (true) {
+      final file = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+      );
+      if (file == null) break; // user cancelled camera
+      photoValues[_ik(a, i)]!.add(file.path);
+      update(['form']);
+      // Ask if they want to take another
+      final takeAnother = await Get.dialog<bool>(
+        _QuickCaptureDialog(count: photoValues[_ik(a, i)]!.length),
+        barrierDismissible: false,
+      );
+      if (takeAnother != true) break;
+    }
+  }
+
+  bool _speechInitialized = false;
+
+  // ─── Voice to Text ────────────────────────────────────────────────────────
+
+  Future<void> startListening(void Function(String) onResult) async {
+    if (!_speechInitialized) {
+      _speechInitialized = await _speech.initialize(
+        onError: (e) {
+          // error_no_match / error_speech_timeout are non-fatal — just stop
+          isListening.value = false;
+        },
+        onStatus: (s) {
+          if (s == SpeechToText.doneStatus || s == SpeechToText.notListeningStatus) {
+            isListening.value = false;
+          }
+        },
+        debugLogging: false,
+      );
+    }
+    if (!_speechInitialized) {
+      Get.snackbar(
+        'Microphone',
+        'Speech recognition is not available on this device. Please check microphone permissions.',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 4),
+      );
+      return;
+    }
+    if (_speech.isListening) await _speech.stop();
+    isListening.value = true;
+    String accumulated = '';
+    await _speech.listen(
+      onResult: (r) {
+        accumulated = r.recognizedWords;
+        if (r.finalResult && accumulated.isNotEmpty) {
+          onResult(accumulated);
+          isListening.value = false;
+        }
+      },
+      listenFor: const Duration(seconds: 60),
+      pauseFor: const Duration(seconds: 4),
+      listenOptions: SpeechListenOptions(
+        partialResults: true,
+        cancelOnError: false,
+        listenMode: ListenMode.dictation,
+      ),
+    );
+  }
+
+  void stopListening() {
+    if (_speech.isListening) {
+      _speech.stop();
+    }
+    isListening.value = false;
+  }
+
+  // ─── AI Comment Generation ────────────────────────────────────────────────
+
+  Future<String?> generateAiComment(int a, int i, String itemName) async {
+    final ik = _ik(a, i);
+    isGeneratingAi[ik] = true;
+    isGeneratingAi.refresh();
+    try {
+      await Future.delayed(const Duration(milliseconds: 600));
+      final conditions = <String>[];
+      final t = template.value;
+      if (t != null) {
+        final item = t.reportAreas[a].reportItems[i];
+        for (var cIdx = 0; cIdx < item.reportItemConditions.length; cIdx++) {
+          final cond = item.reportItemConditions[cIdx];
+          final val = conditionValues[_ck(a, i, cIdx)];
+          if (cond.type == 'boolean' && val == true) {
+            conditions.add(cond.description);
+          } else if (cond.type != 'boolean' && val != null && val.toString().isNotEmpty) {
+            conditions.add('${cond.description}: $val');
+          }
+        }
+      }
+      return _buildAiComment(itemName, conditions);
+    } finally {
+      isGeneratingAi[ik] = false;
+      isGeneratingAi.refresh();
+    }
+  }
+
+  String _buildAiComment(String itemName, List<String> conditions) {
+    final name = itemName.toLowerCase();
+    final hasConditions = conditions.isNotEmpty;
+    final condText = hasConditions ? conditions.join(', ').toLowerCase() : '';
+
+    if (name.contains('wall') || name.contains('ceiling') || name.contains('floor')) {
+      if (condText.contains('damage') || condText.contains('crack') || condText.contains('stain')) {
+        return '$itemName shows signs of damage. Recommend inspection and repair before next tenancy.';
+      }
+      return '$itemName is in good condition with no visible damage or staining.';
+    }
+    if (name.contains('window') || name.contains('door')) {
+      if (condText.contains('broken') || condText.contains('damage')) {
+        return '$itemName requires attention — damage noted. Repair or replacement recommended.';
+      }
+      return '$itemName opens and closes properly. Locks and seals are functioning as expected.';
+    }
+    if (name.contains('kitchen') || name.contains('oven') || name.contains('stove')) {
+      return '$itemName is clean and in working order. No defects observed during inspection.';
+    }
+    if (name.contains('bathroom') || name.contains('toilet') || name.contains('shower')) {
+      return '$itemName is clean and functional. Plumbing and fixtures are in good working condition.';
+    }
+    if (name.contains('carpet') || name.contains('rug')) {
+      if (condText.contains('stain') || condText.contains('worn')) {
+        return '$itemName shows wear and staining. Professional cleaning or replacement may be required.';
+      }
+      return '$itemName is clean and in satisfactory condition with no significant wear.';
+    }
+    if (hasConditions) {
+      return '$itemName inspected. Noted: $condText. Overall condition is satisfactory.';
+    }
+    return '$itemName has been inspected and is in satisfactory condition with no issues noted.';
+  }
+
   void removePhoto(int a, int i, int idx) {
-    photoValues[_ik(a, i)]?.removeAt(idx);
+    final ik = _ik(a, i);
+    photoValues[ik]?.removeAt(idx);
+    // shift labels down for photos after the removed one
+    final photos = photoValues[ik] ?? [];
+    for (var k = idx; k <= photos.length; k++) {
+      final next = photoLabels['$ik-${k + 1}'];
+      if (next != null) {
+        photoLabels['$ik-$k'] = next;
+      } else {
+        photoLabels.remove('$ik-$k');
+      }
+    }
     update(['form']);
+  }
+
+  String getPhotoLabel(int a, int i, int idx) =>
+      photoLabels['${_ik(a, i)}-$idx'] ?? '';
+
+  void setPhotoLabel(int a, int i, int idx, String label) {
+    if (label.trim().isEmpty) {
+      photoLabels.remove('${_ik(a, i)}-$idx');
+    } else {
+      photoLabels['${_ik(a, i)}-$idx'] = label.trim();
+    }
+    update(['form']);
+  }
+
+  /// Burns label text onto the image and returns path to the new annotated file.
+  Future<String> _burnLabelOnImage(String sourcePath, String label) async {
+    final bytes = await File(sourcePath).readAsBytes();
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final srcImage = frame.image;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    // Draw original image
+    canvas.drawImage(srcImage, Offset.zero, Paint());
+
+    final w = srcImage.width.toDouble();
+    final h = srcImage.height.toDouble();
+    final fontSize = (w * 0.045).clamp(18.0, 52.0);
+    final padding = fontSize * 0.6;
+
+    // Semi-transparent dark banner at bottom
+    canvas.drawRect(
+      Rect.fromLTWH(0, h - fontSize * 2.2, w, fontSize * 2.2),
+      Paint()..color = const Color(0xCC000000),
+    );
+
+    // Draw label text
+    final paragraphBuilder = ui.ParagraphBuilder(
+      ui.ParagraphStyle(
+        textAlign: TextAlign.left,
+        fontSize: fontSize,
+        fontWeight: FontWeight.bold,
+      ),
+    )
+      ..pushStyle(ui.TextStyle(
+        color: const Color(0xFFFFFFFF),
+        fontSize: fontSize,
+        fontWeight: FontWeight.bold,
+        shadows: [
+          ui.Shadow(color: const Color(0xFF000000), blurRadius: 4, offset: const Offset(1, 1)),
+        ],
+      ))
+      ..addText(label);
+
+    final paragraph = paragraphBuilder.build()
+      ..layout(ui.ParagraphConstraints(width: w - padding * 2));
+
+    canvas.drawParagraph(
+      paragraph,
+      Offset(padding, h - fontSize * 2.2 + (fontSize * 2.2 - paragraph.height) / 2),
+    );
+
+    final picture = recorder.endRecording();
+    final annotated = await picture.toImage(srcImage.width, srcImage.height);
+    final byteData = await annotated.toByteData(format: ui.ImageByteFormat.png);
+    final annotatedBytes = byteData!.buffer.asUint8List();
+
+    final dir = await getTemporaryDirectory();
+    final outPath = p.join(dir.path, 'annotated_${p.basename(sourcePath)}');
+    await File(outPath).writeAsBytes(annotatedBytes);
+    return outPath;
   }
 
   bool isExpanded(int a, int i) => expandedState[_ik(a, i)] ?? false;
@@ -230,12 +475,16 @@ class InspectionFormController extends GetxController {
             continue;
           }
           try {
-            print('Uploading photo $ik-$pIdx: $path');
+            String uploadPath = path;
+            final label = photoLabels['$ik-$pIdx'];
+            if (label != null && label.isNotEmpty) {
+              uploadPath = await _burnLabelOnImage(path, label);
+            }
             final fileUrl = await _api.uploadPhoto(
               agencyId: item.agencyId,
               propertyId: item.propertyId,
               inspectionId: item.id,
-              filePath: path,
+              filePath: uploadPath,
             );
             print('Uploaded $ik-$pIdx → $fileUrl');
             uploaded['$ik-$pIdx'] = fileUrl;
@@ -336,5 +585,93 @@ class InspectionFormController extends GetxController {
         duration: const Duration(seconds: 3),
       );
     }
+  }
+}
+
+class _QuickCaptureDialog extends StatelessWidget {
+  final int count;
+  const _QuickCaptureDialog({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E2E),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.camera_alt, color: Colors.white, size: 28),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '$count photo${count == 1 ? '' : 's'} captured',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Take another photo?',
+              style: TextStyle(color: Colors.white60, fontSize: 13),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Get.back(result: false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: const BorderSide(color: Colors.white24),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Done'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Get.back(result: true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6C63FF),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.camera_alt, size: 16),
+                        SizedBox(width: 6),
+                        Text('Next Shot'),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
