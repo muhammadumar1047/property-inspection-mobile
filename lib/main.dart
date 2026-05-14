@@ -14,6 +14,7 @@ void main() async {
   Get.put(AuthController());
   runApp(const MyApp());
 }
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 

@@ -20,6 +20,10 @@ class CompletedReportController extends GetxController {
     }
   }
 
+  Future<void> refresh() async {
+    if (inspection.value != null) await _fetch(inspection.value!.id);
+  }
+
   Future<void> _fetch(String id) async {
     isLoading.value = true;
     errorMessage.value = '';

@@ -5,8 +5,16 @@ import '../../core/constants/app_colors.dart';
 import '../../data/models/inspection_model.dart';
 import '../controllers/inspection_list_controller.dart';
 
-class InspectionListScreen extends GetView<InspectionListController> {
+class InspectionListScreen extends StatefulWidget {
   const InspectionListScreen({super.key});
+
+  @override
+  State<InspectionListScreen> createState() => _InspectionListScreenState();
+}
+
+class _InspectionListScreenState extends State<InspectionListScreen> {
+  final InspectionListController controller =
+      Get.find<InspectionListController>();
 
   @override
   Widget build(BuildContext context) {
@@ -15,14 +23,16 @@ class InspectionListScreen extends GetView<InspectionListController> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        title: Obx(() => Text(
-          controller.isMapView.value ? 'Map View' : 'Inspections',
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
+        title: Obx(
+          () => Text(
+            controller.isMapView.value ? 'Map View' : 'Inspections',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        )),
+        ),
         centerTitle: true,
         leading: IconButton(
           onPressed: () => Get.back(),
@@ -31,23 +41,65 @@ class InspectionListScreen extends GetView<InspectionListController> {
         actions: [
           IconButton(
             onPressed: () => Get.toNamed('/notifications'),
-            icon: const Icon(Icons.notifications_outlined, color: AppColors.textSecondary),
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
-      body: Obx(() {
-        if (controller.isMapView.value) {
-          return _buildMapView();
-        }
-        return Column(
-          children: [
-            _buildHeader(),
-            _buildStatusFilter(),
-            Expanded(child: _buildListView()),
-          ],
-        );
-      }),
+      body: Obx(
+        () => controller.isMapView.value ? _buildMapView() : _buildListView(),
+      ),
     );
+  }
+
+  Widget _buildListView() {
+    return Obx(() {
+      final inspections = controller.inspections;
+      return ListView(
+        // physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          _buildHeader(),
+          _buildStatusFilter(),
+          if (inspections.isEmpty)
+            const SizedBox(
+              height: 300,
+              child: Center(
+                child: Text(
+                  'No inspections found',
+                  style: TextStyle(color: AppColors.textHint),
+                ),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: RefreshIndicator(
+                onRefresh: controller.loadInspections,
+                color: AppColors.primary,
+                backgroundColor: AppColors.cardBg,
+                child: Column(
+                  children: inspections.map((item) {
+                    final statusColor = item.isPending
+                        ? AppColors.warning
+                        : AppColors.primary;
+                    return _buildInspectionCard(
+                      item.propertyAddress,
+                      '${item.inspectionDate.split('T').first} · ${item.inspectionTime}',
+                      item.typeLabel,
+                      statusColor,
+                      item.statusLabel,
+                      item.inspectorName,
+                      () => Get.toNamed('/inspection-detail', arguments: item),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
   }
 
   Widget _buildHeader() {
@@ -55,7 +107,6 @@ class InspectionListScreen extends GetView<InspectionListController> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
-          // Filter buttons
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
@@ -115,11 +166,13 @@ class InspectionListScreen extends GetView<InspectionListController> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.border),
               ),
-              child: Obx(() => Icon(
-                controller.isMapView.value ? Icons.list : Icons.map,
-                color: AppColors.textSecondary,
-                size: 20,
-              )),
+              child: Obx(
+                () => Icon(
+                  controller.isMapView.value ? Icons.list : Icons.map,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+              ),
             ),
           ),
         ],
@@ -172,37 +225,15 @@ class InspectionListScreen extends GetView<InspectionListController> {
     );
   }
 
-  Widget _buildListView() {
-    return Obx(() {
-      if (controller.isLoading.value) {
-        return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-      }
-      if (controller.inspections.isEmpty) {
-        return const Center(
-          child: Text('No inspections found', style: TextStyle(color: AppColors.textHint)),
-        );
-      }
-      return ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: controller.inspections.length,
-        itemBuilder: (_, i) {
-          final item = controller.inspections[i];
-          final statusColor = item.isPending ? AppColors.warning : AppColors.primary;
-          return _buildInspectionCard(
-            item.propertyAddress,
-            '${item.inspectionDate.split('T').first} · ${item.inspectionTime}',
-            item.typeLabel,
-            statusColor,
-            item.statusLabel,
-            item.inspectorName,
-            () => Get.toNamed('/inspection-detail', arguments: item),
-          );
-        },
-      );
-    });
-  }
-
-  Widget _buildInspectionCard(String address, String date, String type, Color statusColor, String status, String inspector, VoidCallback onTap) {
+  Widget _buildInspectionCard(
+    String address,
+    String date,
+    String type,
+    Color statusColor,
+    String status,
+    String inspector,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -259,7 +290,10 @@ class InspectionListScreen extends GetView<InspectionListController> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
@@ -276,7 +310,7 @@ class InspectionListScreen extends GetView<InspectionListController> {
                 const SizedBox(height: 8),
                 Text(
                   inspector,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 10,
                     color: AppColors.textSecondary,
                   ),
@@ -297,30 +331,64 @@ class InspectionListScreen extends GetView<InspectionListController> {
           child: Stack(
             children: [
               SizedBox.expand(
-                child: Obx(() => GoogleMap(
-                  onMapCreated: controller.onMapCreated,
-                  initialCameraPosition: CameraPosition(
-                    target: coordList.isNotEmpty
-                        ? LatLng(coordList.first.property!.latitude!,
-                            coordList.first.property!.longitude!)
-                        : const LatLng(-33.8688, 151.2093),
-                    zoom: 14,
+                child: Obx(
+                  () => GoogleMap(
+                    onMapCreated: controller.onMapCreated,
+                    initialCameraPosition: CameraPosition(
+                      target: coordList.isNotEmpty
+                          ? LatLng(
+                              coordList.first.property!.latitude!,
+                              coordList.first.property!.longitude!,
+                            )
+                          : const LatLng(-33.8688, 151.2093),
+                      zoom: 14,
+                    ),
+                    markers: controller.markers.toSet(),
+                    mapType: MapType.normal,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: false,
+                    zoomControlsEnabled: false,
                   ),
-                  markers: controller.markers.toSet(),
-                  mapType: MapType.normal,
-                  myLocationEnabled: true,
-                  myLocationButtonEnabled: false,
-                  zoomControlsEnabled: false,
-                )),
+                ),
               ),
               Positioned(
-                top: MediaQuery.of(Get.context!).padding.top + 8,
+                top: MediaQuery.of(context).padding.top + 8,
                 left: 12,
                 right: 12,
                 child: Row(
                   children: [
                     _mapIconButton(Icons.arrow_back, () => Get.back()),
                     const Spacer(),
+                    Obx(
+                      () => controller.isLoading.value
+                          ? Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.cardBg,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: AppColors.primary,
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : _mapIconButton(
+                              Icons.refresh,
+                              controller.loadInspections,
+                            ),
+                    ),
+                    const SizedBox(width: 8),
                     _mapIconButton(Icons.list, controller.toggleView),
                   ],
                 ),
@@ -335,9 +403,13 @@ class InspectionListScreen extends GetView<InspectionListController> {
             final items = controller.inspections;
             if (items.isEmpty) {
               return const Center(
-                child: Text('No inspections found',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 13)),
+                child: Text(
+                  'No inspections found',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
               );
             }
             return PageView.builder(
@@ -363,9 +435,10 @@ class InspectionListScreen extends GetView<InspectionListController> {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
         child: Icon(icon, color: AppColors.textPrimary, size: 20),
@@ -374,13 +447,19 @@ class InspectionListScreen extends GetView<InspectionListController> {
   }
 
   Widget _buildMapCard(InspectionModel item, int i) {
-    final statusColor =
-        item.isPending ? const Color(0xFFF59E0B) : AppColors.primary;
+    final statusColor = item.isPending
+        ? const Color(0xFFF59E0B)
+        : AppColors.primary;
     return Obx(() {
       final isSelected = controller.selectedIndex.value == i;
       return AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        margin: EdgeInsets.fromLTRB(8, isSelected ? 0 : 12, 8, isSelected ? 0 : 12),
+        margin: EdgeInsets.fromLTRB(
+          8,
+          isSelected ? 0 : 12,
+          8,
+          isSelected ? 0 : 12,
+        ),
         decoration: BoxDecoration(
           color: AppColors.cardBg,
           borderRadius: BorderRadius.circular(16),
@@ -404,18 +483,22 @@ class InspectionListScreen extends GetView<InspectionListController> {
               Row(
                 children: [
                   Container(
-                    width: 8, height: 8,
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
-                        color: statusColor, shape: BoxShape.circle),
+                      color: statusColor,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       item.propertyAddress,
                       style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -423,7 +506,9 @@ class InspectionListScreen extends GetView<InspectionListController> {
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(6),
@@ -431,9 +516,10 @@ class InspectionListScreen extends GetView<InspectionListController> {
                     child: Text(
                       item.statusLabel,
                       style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: statusColor),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
+                      ),
                     ),
                   ),
                 ],
@@ -441,22 +527,32 @@ class InspectionListScreen extends GetView<InspectionListController> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.calendar_today,
-                      size: 12, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.calendar_today,
+                    size: 12,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     item.inspectionDate.split('T').first,
                     style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  const Icon(Icons.access_time,
-                      size: 12, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.access_time,
+                    size: 12,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     item.inspectionTime,
                     style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -465,7 +561,9 @@ class InspectionListScreen extends GetView<InspectionListController> {
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(6),
@@ -474,14 +572,18 @@ class InspectionListScreen extends GetView<InspectionListController> {
                     child: Text(
                       item.typeLabel,
                       style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary),
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
                   const Spacer(),
                   Text(
                     item.inspectorName,
                     style: const TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary),
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -496,13 +598,15 @@ class InspectionListScreen extends GetView<InspectionListController> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 9),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: const Text('Open Inspection →',
-                      style: TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Open Inspection →',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -511,6 +615,4 @@ class InspectionListScreen extends GetView<InspectionListController> {
       );
     });
   }
-
-
 }

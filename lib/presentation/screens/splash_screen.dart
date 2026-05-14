@@ -77,7 +77,9 @@ class _SplashScreenState extends State<SplashScreen>
 
       // Do a fresh connectivity check instead of relying on cached isOnline
       final connectivityResult = await Connectivity().checkConnectivity();
-      final isOnline = connectivityResult.any((r) => r != ConnectivityResult.none);
+      final isOnline = connectivityResult.any(
+        (r) => r != ConnectivityResult.none,
+      );
 
       if (isOnline) {
         try {
@@ -161,41 +163,10 @@ class _SplashScreenState extends State<SplashScreen>
         width: 140,
         height: 140,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(35),
-          border: Border.all(color: Colors.white.withOpacity(0.3), width: 3),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 40,
-              offset: const Offset(0, 20),
-            ),
-          ],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            const Icon(Icons.home_work_rounded, size: 80, color: Colors.white),
-            Positioned(
-              top: 20,
-              right: 20,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.success,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.success.withOpacity(0.5),
-                      blurRadius: 15,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.check, color: Colors.white, size: 20),
-              ),
-            ),
-          ],
+          image: DecorationImage(
+            image: AssetImage("assets/images/inspectLogo.png"),
+          ),
+          shape: BoxShape.circle,
         ),
       ),
     );
@@ -218,11 +189,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
                 children: [
                   TextSpan(
-                    text: 'Property ',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  TextSpan(
-                    text: 'Inspector',
+                    text: 'EaseInspect',
                     style: TextStyle(
                       color: Colors.white,
                       backgroundColor: Colors.white24,

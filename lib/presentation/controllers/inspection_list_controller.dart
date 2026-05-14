@@ -24,10 +24,12 @@ class InspectionListController extends GetxController {
   List<InspectionModel> get mappableInspections => inspections.toList();
 
   List<InspectionModel> get inspectionsWithCoords => inspections
-      .where((i) =>
-          i.property?.latitude != null &&
-          i.property?.longitude != null &&
-          !(i.property!.latitude == 0 && i.property!.longitude == 0))
+      .where(
+        (i) =>
+            i.property?.latitude != null &&
+            i.property?.longitude != null &&
+            !(i.property!.latitude == 0 && i.property!.longitude == 0),
+      )
       .toList();
 
   @override
@@ -109,10 +111,13 @@ class InspectionListController extends GetxController {
 
   void _refreshMarkers(int selectedIdx) {
     final allList = mappableInspections;
-    markers.value = allList.asMap().entries
+    markers.value = allList
+        .asMap()
+        .entries
         .where((e) {
           final p = e.value.property;
-          return p?.latitude != null && p?.longitude != null &&
+          return p?.latitude != null &&
+              p?.longitude != null &&
               !(p!.latitude == 0 && p.longitude == 0);
         })
         .map((e) {
@@ -121,9 +126,13 @@ class InspectionListController extends GetxController {
           return Marker(
             markerId: MarkerId(inspection.id),
             position: LatLng(
-                inspection.property!.latitude!, inspection.property!.longitude!),
+              inspection.property!.latitude!,
+              inspection.property!.longitude!,
+            ),
             icon: i == selectedIdx
-                ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure)
+                ? BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueAzure,
+                  )
                 : BitmapDescriptor.defaultMarker,
             infoWindow: InfoWindow(
               title: inspection.propertyAddress,
@@ -131,7 +140,8 @@ class InspectionListController extends GetxController {
             ),
             onTap: () => onMarkerTapped(i),
           );
-        }).toList();
+        })
+        .toList();
   }
 
   void setupMarkers() => _refreshMarkers(selectedIndex.value);
@@ -143,7 +153,10 @@ class InspectionListController extends GetxController {
       mapController?.animateCamera(
         CameraUpdate.newCameraPosition(
           CameraPosition(
-            target: LatLng(first.property!.latitude!, first.property!.longitude!),
+            target: LatLng(
+              first.property!.latitude!,
+              first.property!.longitude!,
+            ),
             zoom: 14,
           ),
         ),

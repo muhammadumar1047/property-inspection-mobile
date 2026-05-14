@@ -43,7 +43,7 @@ class WelcomeScreen extends StatelessWidget {
                     colors: [AppColors.gradient1, AppColors.gradient2],
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
               ],
             ),
@@ -57,36 +57,12 @@ class WelcomeScreen extends StatelessWidget {
     return Container(
       width: 200,
       height: 200,
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: AppColors.white, shape: BoxShape.circle),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Icon(
-            Icons.home_work_rounded,
-            size: 120,
-            color: AppColors.primary,
-          ),
-          Positioned(
-            top: 40,
-            right: 40,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.success,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.success.withOpacity(0.3),
-                    blurRadius: 10,
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.check, color: Colors.white, size: 24),
-            ),
-          ),
+          // Icon(Icons.home_work_rounded, size: 120, color: AppColors.primary),
+          Image.asset("assets/images/inspectLogo.png", width: 130, height: 130),
         ],
       ),
     );
@@ -104,15 +80,8 @@ class WelcomeScreen extends StatelessWidget {
         children: [
           TextSpan(text: 'Welcome to\n'),
           TextSpan(
-            text: 'Property ',
+            text: 'EaseInspect ',
             style: TextStyle(color: AppColors.primary),
-          ),
-          TextSpan(
-            text: 'Inspector',
-            style: TextStyle(
-              color: Colors.white,
-              backgroundColor: AppColors.primary,
-            ),
           ),
         ],
       ),
@@ -130,6 +99,4 @@ class WelcomeScreen extends StatelessWidget {
       ),
     );
   }
-
-
 }

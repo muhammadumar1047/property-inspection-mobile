@@ -20,8 +20,7 @@ class LoginScreen extends GetView<AuthController> {
               children: [
                 const SizedBox(height: 40),
                 _buildLogo(),
-                const SizedBox(height: 48),
-                _buildTitle(),
+
                 const SizedBox(height: 8),
                 _buildSubtitle(),
                 const SizedBox(height: 48),
@@ -41,16 +40,13 @@ class LoginScreen extends GetView<AuthController> {
 
   Widget _buildLogo() {
     return Container(
-      width: 60,
-      height: 60,
+      width: 120,
+      height: 120,
       decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: const Icon(
-        Icons.home,
-        size: 32,
-        color: Colors.white,
+        image: DecorationImage(
+          image: AssetImage("assets/images/inspectLogo.png"),
+        ),
+        shape: BoxShape.circle,
       ),
     );
   }
@@ -58,10 +54,7 @@ class LoginScreen extends GetView<AuthController> {
   Widget _buildTitle() {
     return RichText(
       text: const TextSpan(
-        style: TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-        ),
+        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         children: [
           TextSpan(
             text: 'Pro',
@@ -78,22 +71,21 @@ class LoginScreen extends GetView<AuthController> {
 
   Widget _buildSubtitle() {
     return const Text(
-      'Professional Property Inspections',
-      style: TextStyle(
-        color: AppColors.textSecondary,
-        fontSize: 14,
-      ),
+      'Professional EaseInspect\nat your fingertip',
+      textAlign: TextAlign.center,
+      style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
     );
   }
 
   Widget _buildSignInLabel() {
     return const Align(
-      alignment: Alignment.centerLeft,
+      alignment: Alignment.center,
       child: Text(
         'SIGN IN',
         style: TextStyle(
           color: AppColors.textSecondary,
           fontSize: 12,
+
           fontWeight: FontWeight.w600,
           letterSpacing: 1.5,
         ),
@@ -112,23 +104,25 @@ class LoginScreen extends GetView<AuthController> {
             onChanged: (value) => controller.email.value = value,
           ),
           const SizedBox(height: 16),
-          Obx(() => _buildTextField(
-            label: 'Password',
-            icon: Icons.lock_outline,
-            isPassword: true,
-            obscureText: controller.obscurePassword.value,
-            onChanged: (value) => controller.password.value = value,
-            suffixIcon: IconButton(
-              icon: Icon(
-                controller.obscurePassword.value
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                color: AppColors.textSecondary,
-                size: 20,
+          Obx(
+            () => _buildTextField(
+              label: 'Password',
+              icon: Icons.lock_outline,
+              isPassword: true,
+              obscureText: controller.obscurePassword.value,
+              onChanged: (value) => controller.password.value = value,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  controller.obscurePassword.value
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+                onPressed: controller.togglePasswordVisibility,
               ),
-              onPressed: controller.togglePasswordVisibility,
             ),
-          )),
+          ),
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
@@ -136,25 +130,24 @@ class LoginScreen extends GetView<AuthController> {
               onPressed: () {},
               child: const Text(
                 'Forgot Password?',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
             ),
           ),
           const SizedBox(height: 24),
-          Obx(() => CustomButton(
-            buttonColor: AppColors.primary,
-            title: 'LOGIN',
-            textColor: AppColors.background,
-            borderColor: Colors.transparent,
-            onTap: controller.login,
-            isLoading: controller.isLoading.value,
-            gradient: const LinearGradient(
-              colors: [AppColors.gradient1, AppColors.gradient2],
+          Obx(
+            () => CustomButton(
+              buttonColor: AppColors.primary,
+              title: 'LOGIN',
+              textColor: AppColors.background,
+              borderColor: Colors.transparent,
+              onTap: controller.login,
+              isLoading: controller.isLoading.value,
+              gradient: const LinearGradient(
+                colors: [AppColors.gradient1, AppColors.gradient2],
+              ),
             ),
-          )),
+          ),
         ],
       ),
     );

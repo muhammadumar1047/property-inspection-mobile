@@ -49,7 +49,11 @@ class CompletedReportScreen extends GetView<CompletedReportController> {
 
       return Scaffold(
         backgroundColor: AppColors.background,
-        body: CustomScrollView(
+        body: RefreshIndicator(
+          onRefresh: controller.refresh,
+          color: AppColors.primary,
+          backgroundColor: AppColors.surface,
+          child: CustomScrollView(
           slivers: [
             _buildHeroHeader(),
             SliverToBoxAdapter(
@@ -81,6 +85,7 @@ class CompletedReportScreen extends GetView<CompletedReportController> {
               ),
             ),
           ],
+          ),
         ),
       );
     });
