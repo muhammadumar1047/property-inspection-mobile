@@ -192,18 +192,27 @@ class CompletedReportScreen extends GetView<CompletedReportController> {
         const SizedBox(width: 8),
         _badge(Icons.category_outlined, controller.typeLabel, AppColors.primary),
         const Spacer(),
-        Row(
-          children: [
-            const Icon(Icons.calendar_today, color: AppColors.textHint, size: 13),
-            const SizedBox(width: 5),
-            Text(controller.inspectionDate,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-            const SizedBox(width: 10),
-            const Icon(Icons.access_time, color: AppColors.textHint, size: 13),
-            const SizedBox(width: 5),
-            Text(controller.inspectionTime,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-          ],
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.calendar_today, color: AppColors.textHint, size: 13),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(controller.inspectionDate,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ),
+              const SizedBox(width: 10),
+              const Icon(Icons.access_time, color: AppColors.textHint, size: 13),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(controller.inspectionTime,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ),
+            ],
+          ),
         ),
       ],
     );

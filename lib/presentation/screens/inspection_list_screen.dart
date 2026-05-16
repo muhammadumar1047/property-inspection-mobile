@@ -15,6 +15,14 @@ class InspectionListScreen extends StatefulWidget {
 class _InspectionListScreenState extends State<InspectionListScreen> {
   final InspectionListController controller =
       Get.find<InspectionListController>();
+  final _scrollController = ScrollController();
+  final _refreshKey = GlobalKey<RefreshIndicatorState>();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,42 +56,49 @@ class _InspectionListScreenState extends State<InspectionListScreen> {
           ),
         ],
       ),
-      body: Obx(
-        () => controller.isMapView.value ? _buildMapView() : _buildListView(),
-      ),
+      body: Obx(() {
+        final isMap = controller.isMapView.value;
+        return Stack(
+          children: [
+            Offstage(offstage: isMap, child: _buildListView()),
+            Offstage(offstage: !isMap, child: _buildMapView()),
+          ],
+        );
+      }),
     );
   }
 
   Widget _buildListView() {
-    return Obx(() {
-      final inspections = controller.inspections;
-      return ListView(
-        // physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          _buildHeader(),
-          _buildStatusFilter(),
-          if (inspections.isEmpty)
-            const SizedBox(
-              height: 300,
-              child: Center(
-                child: Text(
-                  'No inspections found',
-                  style: TextStyle(color: AppColors.textHint),
+    return RefreshIndicator(
+      key: _refreshKey,
+      onRefresh: controller.loadInspections,
+      color: AppColors.primary,
+      child: CustomScrollView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(child: _buildHeader()),
+          SliverToBoxAdapter(child: _buildStatusFilter()),
+          Obx(() {
+            final inspections = controller.inspections;
+            if (inspections.isEmpty) {
+              return const SliverFillRemaining(
+                child: Center(
+                  child: Text(
+                    'No inspections found',
+                    style: TextStyle(color: AppColors.textHint),
+                  ),
                 ),
-              ),
-            )
-          else
-            Padding(
+              );
+            }
+            return SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: RefreshIndicator(
-                onRefresh: controller.loadInspections,
-                color: AppColors.primary,
-                backgroundColor: AppColors.cardBg,
-                child: Column(
-                  children: inspections.map((item) {
-                    final statusColor = item.isPending
-                        ? AppColors.warning
-                        : AppColors.primary;
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (_, i) {
+                    final item = inspections[i];
+                    final statusColor =
+                        item.isPending ? AppColors.warning : AppColors.primary;
                     return _buildInspectionCard(
                       item.propertyAddress,
                       '${item.inspectionDate.split('T').first} · ${item.inspectionTime}',
@@ -93,13 +108,15 @@ class _InspectionListScreenState extends State<InspectionListScreen> {
                       item.inspectorName,
                       () => Get.toNamed('/inspection-detail', arguments: item),
                     );
-                  }).toList(),
+                  },
+                  childCount: inspections.length,
                 ),
               ),
-            ),
+            );
+          }),
         ],
-      );
-    });
+      ),
+    );
   }
 
   Widget _buildHeader() {

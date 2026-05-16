@@ -1,5 +1,5 @@
 class AppConstants {
-  static const String appName = 'Inpect Pro';
+  static const String appName = 'EaseInspect';
   static const String baseUrl = 'http://ec2-52-62-164-129.ap-southeast-2.compute.amazonaws.com:5000';
   // For web build
   // static const String baseUrl = "/api";

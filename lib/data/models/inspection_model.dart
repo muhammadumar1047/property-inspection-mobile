@@ -65,11 +65,11 @@ class InspectionModel {
   String get typeLabel {
     switch (inspectionType) {
       case 1:
-        return 'Routine';
-      case 2:
         return 'Entry';
-      case 3:
+      case 2:
         return 'Exit';
+      case 3:
+        return 'Routine';
       default:
         return 'Inspection';
     }

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/constants/app_colors.dart';
@@ -42,64 +43,72 @@ class SettingsScreen extends GetView<SettingsController> {
 
   Widget _buildProfileSection() {
     return GestureDetector(
-      onTap: () => Get.toNamed('/edit-profile'),
+      onTap: () async {
+        await Get.toNamed('/edit-profile');
+        controller.loadProfile();
+      },
       child: Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppColors.cardGradient,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(30),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: AppColors.cardGradient,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: Obx(() => Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: controller.profileImage.value != null
+                  ? (controller.profileImage.value!.startsWith('http')
+                      ? Image.network(
+                          controller.profileImage.value!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white, size: 30),
+                        )
+                      : Image.file(
+                          File(controller.profileImage.value!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.white, size: 30),
+                        ))
+                  : const Icon(Icons.person, color: Colors.white, size: 30),
             ),
-            child: const Icon(
-              Icons.person,
-              color: Colors.white,
-              size: 30,
-            ),
-          ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'John Inspector',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    controller.fullName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'john.inspector@company.com',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 14,
+                  const SizedBox(height: 4),
+                  Text(
+                    controller.email.value.isNotEmpty
+                        ? controller.email.value
+                        : 'No email set',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          GestureDetector(
-            onTap: () => Get.toNamed('/edit-profile'),
-            child: const Icon(
-              Icons.edit,
-              color: AppColors.textSecondary,
-              size: 20,
-            ),
-          ),
-        ],
+            const Icon(Icons.edit, color: AppColors.textSecondary, size: 20),
+          ],
+        )),
       ),
-    ));
+    );
   }
 
   Widget _buildSettingsSection() {
@@ -293,7 +302,7 @@ class SettingsScreen extends GetView<SettingsController> {
   Widget _buildLogoutButton() {
     return Container(
       width: double.infinity,
-      height: 50,
+      height: 65,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFFFF6B6B), Color(0xFFFF5252)],

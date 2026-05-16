@@ -429,11 +429,10 @@ class InspectionFormController extends GetxController {
             .map((c) => {'text': c})
             .toList();
 
-        final photos = (photoValues[ik] ?? []).asMap().entries.map((e) {
-          final photoKey = '$ik-${e.key}';
-          final url = uploadedPhotoUrls[photoKey] ?? e.value;
-          return {'url': url, 'type': 'photo'};
-        }).toList();
+        final photos = (photoValues[ik] ?? []).asMap().entries
+            .where((e) => uploadedPhotoUrls.containsKey('$ik-${e.key}'))
+            .map((e) => {'url': uploadedPhotoUrls['$ik-${e.key}']!, 'type': 'photo'})
+            .toList();
 
         return {
           'name': ri.name,
@@ -474,23 +473,18 @@ class InspectionFormController extends GetxController {
             uploaded['$ik-$pIdx'] = path;
             continue;
           }
-          try {
-            String uploadPath = path;
-            final label = photoLabels['$ik-$pIdx'];
-            if (label != null && label.isNotEmpty) {
-              uploadPath = await _burnLabelOnImage(path, label);
-            }
-            final fileUrl = await _api.uploadPhoto(
-              agencyId: item.agencyId,
-              propertyId: item.propertyId,
-              inspectionId: item.id,
-              filePath: uploadPath,
-            );
-            print('Uploaded $ik-$pIdx → $fileUrl');
-            uploaded['$ik-$pIdx'] = fileUrl;
-          } catch (e) {
-            print('Photo upload failed for $ik-$pIdx: $e');
+          String uploadPath = path;
+          final label = photoLabels['$ik-$pIdx'];
+          if (label != null && label.isNotEmpty) {
+            uploadPath = await _burnLabelOnImage(path, label);
           }
+          final fileUrl = await _api.uploadPhoto(
+            agencyId: item.agencyId,
+            propertyId: item.propertyId,
+            inspectionId: item.id,
+            filePath: uploadPath,
+          );
+          uploaded['$ik-$pIdx'] = fileUrl;
         }
       }
     }

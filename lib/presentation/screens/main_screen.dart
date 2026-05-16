@@ -150,12 +150,12 @@ class DashboardContent extends GetView<DashboardController> {
       children: [
         Row(
           children: [
-            const Text('Inspect ',
+            const Text('Ease',
                 style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
-              child: const Text('Pro', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+              child: const Text('Inspect', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -541,7 +541,9 @@ class DashboardContent extends GetView<DashboardController> {
           return Column(
             children: items.map((item) {
               final isDone = item.isCompleted;
-              return Container(
+              return GestureDetector(
+                onTap: () => Get.toNamed('/inspection-detail', arguments: item),
+                child: Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -596,7 +598,8 @@ class DashboardContent extends GetView<DashboardController> {
                     ),
                   ],
                 ),
-              );
+              ),
+            );
             }).toList(),
           );
         }),
@@ -613,10 +616,24 @@ class InspectionListContent extends StatefulWidget {
   State<InspectionListContent> createState() => _InspectionListContentState();
 }
 
-class _InspectionListContentState extends State<InspectionListContent> {
+class _InspectionListContentState extends State<InspectionListContent>
+    with SingleTickerProviderStateMixin {
   bool showMap = false;
   final _controller = Get.find<InspectionListController>();
   GoogleMapController? mapController;
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(37.7749, -122.4194),
@@ -649,9 +666,17 @@ class _InspectionListContentState extends State<InspectionListContent> {
       body: Column(
         children: [
           _buildHeader(),
-          _buildStatusFilter(),
+          if (!showMap) _buildTabs(),
           Expanded(
-            child: showMap ? _buildMapView() : _buildListView(),
+            child: showMap
+                ? _buildMapView()
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildListView(false),
+                      _buildListView(true),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -659,158 +684,175 @@ class _InspectionListContentState extends State<InspectionListContent> {
   }
 
   Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Text(
-              'All',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Text(
-              'Type',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Text(
-              'Date',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const Spacer(),
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                showMap = !showMap;
-              });
-            },
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Icon(
-                showMap ? Icons.list : Icons.map,
-                color: AppColors.textSecondary,
-                size: 20,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusFilter() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Row(
-        children: [
-          const Text(
-            'Status',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'All',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-                SizedBox(width: 4),
-                Icon(
-                  Icons.keyboard_arrow_down,
-                  color: AppColors.textSecondary,
-                  size: 16,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildListView() {
     return Obx(() {
-      if (_controller.isLoading.value) {
-        return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-      }
-      if (_controller.inspections.isEmpty) {
-        return const Center(
-          child: Text('No inspections found', style: TextStyle(color: AppColors.textHint)),
-        );
-      }
-      return ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: _controller.inspections.length,
-        itemBuilder: (_, i) {
-          final item = _controller.inspections[i];
-          final statusColor = item.isPending ? AppColors.warning : AppColors.primary;
-          return _buildInspectionCard(
-            item,
-            item.propertyAddress,
-            '${item.inspectionDate.split('T').first} • ${item.inspectionTime}',
-            item.typeLabel,
-            statusColor,
-            item.statusLabel,
-            () => Get.toNamed('/inspection-detail', arguments: item),
-          );
-        },
+      final type = _controller.selectedType.value;
+      final date = _controller.selectedDate.value;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _filterChip('All', type == null && date == null, () {
+                      _controller.setTypeFilter(null);
+                      _controller.setDateFilter(null);
+                    }),
+                    const SizedBox(width: 8),
+                    _filterChip('Entry', type == 1, () => _controller.setTypeFilter(type == 1 ? null : 1)),
+                    const SizedBox(width: 8),
+                    _filterChip('Exit', type == 2, () => _controller.setTypeFilter(type == 2 ? null : 2)),
+                    const SizedBox(width: 8),
+                    _filterChip('Routine', type == 3, () => _controller.setTypeFilter(type == 3 ? null : 3)),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: date ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                        );
+                        _controller.setDateFilter(picked);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: date != null ? AppColors.primary : AppColors.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: date != null ? AppColors.primary : AppColors.border),
+                        ),
+                        child: Text(
+                          date != null ? '${date.day}/${date.month}/${date.year}' : 'Date',
+                          style: TextStyle(
+                            color: date != null ? Colors.white : AppColors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => setState(() => showMap = !showMap),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Icon(
+                  showMap ? Icons.list : Icons.map,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     });
+  }
+
+  Widget _filterChip(String label, bool active, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? AppColors.primary : AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: active ? AppColors.primary : AppColors.border),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? Colors.white : AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabs() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: Colors.white,
+        unselectedLabelColor: AppColors.textSecondary,
+        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        tabs: const [
+          Tab(text: 'Pending'),
+          Tab(text: 'Completed'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListView(bool? completedFilter) {
+    return RefreshIndicator(
+      onRefresh: _controller.loadInspections,
+      color: AppColors.primary,
+      child: Obx(() {
+        var inspections = _controller.filteredInspections;
+        if (completedFilter != null) {
+          inspections = completedFilter
+              ? inspections.where((i) => i.isCompleted).toList()
+              : inspections.where((i) => i.isPending).toList();
+        }
+        if (inspections.isEmpty) {
+          return const CustomScrollView(
+            physics: AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverFillRemaining(
+                child: Center(
+                  child: Text('No inspections found', style: TextStyle(color: AppColors.textHint)),
+                ),
+              ),
+            ],
+          );
+        }
+        return ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          itemCount: inspections.length,
+          itemBuilder: (_, i) {
+            final item = inspections[i];
+            final statusColor = item.isPending ? AppColors.warning : AppColors.primary;
+            return _buildInspectionCard(
+              item,
+              item.propertyAddress,
+              '${item.inspectionDate.split('T').first} • ${item.inspectionTime}',
+              item.typeLabel,
+              statusColor,
+              item.statusLabel,
+              () => Get.toNamed('/inspection-detail', arguments: item),
+            );
+          },
+        );
+      }),
+    );
   }
 
   Widget _buildInspectionCard(

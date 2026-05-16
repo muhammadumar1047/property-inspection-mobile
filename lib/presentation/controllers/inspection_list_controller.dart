@@ -18,6 +18,30 @@ class InspectionListController extends GetxController {
 
   final inspections = <InspectionModel>[].obs;
   final selectedIndex = 0.obs;
+  final selectedType = RxnInt();   // null=All, 1=Entry, 2=Exit, 3=Routine
+  final selectedDate = Rxn<DateTime>();
+
+  List<InspectionModel> get filteredInspections {
+    var list = inspections.toList();
+    if (selectedType.value != null) {
+      list = list.where((i) => i.inspectionType == selectedType.value).toList();
+    }
+    if (selectedDate.value != null) {
+      final d = selectedDate.value!;
+      list = list.where((i) {
+        final parsed = DateTime.tryParse(i.inspectionDate);
+        return parsed != null &&
+            parsed.year == d.year &&
+            parsed.month == d.month &&
+            parsed.day == d.day;
+      }).toList();
+    }
+    return list;
+  }
+
+  void setTypeFilter(int? type) => selectedType.value = type;
+
+  void setDateFilter(DateTime? date) => selectedDate.value = date;
 
   // All inspections shown in the card strip
   // Only inspections with valid coords get markers

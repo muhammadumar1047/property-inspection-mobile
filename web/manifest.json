@@ -1,6 +1,6 @@
 {
-    "name": "primesoftware",
-    "short_name": "primesoftware",
+    "name": "EaseInspect",
+    "short_name": "EaseInspect",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#hexcode",
