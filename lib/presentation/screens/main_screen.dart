@@ -7,6 +7,7 @@ import '../../core/constants/app_colors.dart';
 import '../controllers/main_controller.dart';
 import '../controllers/dashboard_controller.dart';
 import '../controllers/inspection_list_controller.dart';
+import 'calendar_screen.dart';
 import 'inspection_list_screen.dart';
 import 'settings_screen.dart';
 import 'notifications_screen.dart';
@@ -37,8 +38,10 @@ var width,height;
       case 1:
         return const InspectionListContent();
       case 2:
-        return const NotificationsContent();
+        return const CalendarContent();
       case 3:
+        return const NotificationsContent();
+      case 4:
         return const SettingsScreen();
       default:
         return const DashboardContent();
@@ -46,55 +49,78 @@ var width,height;
   }
 
   Widget _buildBottomNav() {
-   
-    return Container(
-      height: height*.08,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        border: Border(top: BorderSide(color: AppColors.border, width: 1)),
-      ),
-      child: Obx(() => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(Icons.home_rounded, 'Home', 0),
-          _buildNavItem(Icons.list_alt, '', 1),
-          _buildNavItem(Icons.notifications, '', 2),
-          _buildNavItem(Icons.person_outline, '', 4),
-        ],
-      )),
-    );
+    return Obx(() {
+      final current = controller.currentIndex.value;
+      return Container(
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          border: const Border(top: BorderSide(color: AppColors.border, width: 0.5)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _navItem(Icons.home_rounded, Icons.home_outlined, 'Home', 0, current),
+                _navItem(Icons.list_alt_rounded, Icons.list_alt_outlined, 'Inspect', 1, current),
+                _navItem(Icons.calendar_month_rounded, Icons.calendar_month_outlined, 'Calendar', 2, current),
+                _navItem(Icons.notifications_rounded, Icons.notifications_outlined, 'Alerts', 3, current),
+                _navItem(Icons.person_rounded, Icons.person_outline_rounded, 'Profile', 4, current),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index) {
-    final isActive = controller.currentIndex.value == index;
+  Widget _navItem(IconData activeIcon, IconData inactiveIcon, String label, int index, int current) {
+    final isActive = current == index;
     return GestureDetector(
-      onTap: () => controller.changeIndex(index > 3 ? 3 : index),
+      onTap: () => controller.changeIndex(index),
+      behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: isActive && label.isNotEmpty
-            ? const EdgeInsets.symmetric(horizontal: 20, vertical: 10)
-            : const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isActive ? AppColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeInOut,
+        padding: EdgeInsets.symmetric(
+          horizontal: isActive ? 18 : 12,
+          vertical: 8,
         ),
-        child: Row(
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.primary.withOpacity(0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white, size: 22),
-            if (isActive && label.isNotEmpty) ...
-              [
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                isActive ? activeIcon : inactiveIcon,
+                key: ValueKey(isActive),
+                color: isActive ? AppColors.primary : AppColors.textSecondary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(height: 3),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                color: isActive ? AppColors.primary : AppColors.textSecondary,
+              ),
+              child: Text(label),
+            ),
           ],
         ),
       ),
@@ -945,444 +971,179 @@ class _InspectionListContentState extends State<InspectionListContent>
   }
 
   Widget _buildMapView() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            GoogleMap(
-              initialCameraPosition: _initialPosition,
-              markers: Set<Marker>.from(_controller.markers),
-              onMapCreated: (GoogleMapController controller) {
-                mapController = controller;
-                // Set dark theme for the map
-                controller.setMapStyle('''
-                  [
-                    {
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#1d2c4d"
-                        }
-                      ]
-                    },
-                    {
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#8ec3b9"
-                        }
-                      ]
-                    },
-                    {
-                      "elementType": "labels.text.stroke",
-                      "stylers": [
-                        {
-                          "color": "#1a3646"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "administrative.country",
-                      "elementType": "geometry.stroke",
-                      "stylers": [
-                        {
-                          "color": "#4b6878"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "administrative.land_parcel",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#64779e"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "administrative.province",
-                      "elementType": "geometry.stroke",
-                      "stylers": [
-                        {
-                          "color": "#4b6878"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "landscape.man_made",
-                      "elementType": "geometry.stroke",
-                      "stylers": [
-                        {
-                          "color": "#334e87"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "landscape.natural",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#023e58"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "poi",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#283d6a"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "poi",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#6f9ba5"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "poi",
-                      "elementType": "labels.text.stroke",
-                      "stylers": [
-                        {
-                          "color": "#1d2c4d"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "poi.park",
-                      "elementType": "geometry.fill",
-                      "stylers": [
-                        {
-                          "color": "#023e58"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "poi.park",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#3C7680"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#304a7d"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#98a5be"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road",
-                      "elementType": "labels.text.stroke",
-                      "stylers": [
-                        {
-                          "color": "#1d2c4d"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road.highway",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#2c6675"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road.highway",
-                      "elementType": "geometry.stroke",
-                      "stylers": [
-                        {
-                          "color": "#255763"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road.highway",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#b0d5ce"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road.highway",
-                      "elementType": "labels.text.stroke",
-                      "stylers": [
-                        {
-                          "color": "#023e58"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "transit",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#98a5be"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "transit",
-                      "elementType": "labels.text.stroke",
-                      "stylers": [
-                        {
-                          "color": "#1d2c4d"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "transit.line",
-                      "elementType": "geometry.fill",
-                      "stylers": [
-                        {
-                          "color": "#283d6a"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "transit.station",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#3a4762"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "water",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#0e1626"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "water",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#4e6d70"
-                        }
-                      ]
-                    }
-                  ]
-                ''');
-              },
-              myLocationEnabled: false,
-              myLocationButtonEnabled: false,
-              zoomControlsEnabled: false,
-              mapToolbarEnabled: false,
-            ),
-            Positioned(
-              bottom: 20,
-              left: 20,
-              right: 20,
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      '3711 Western Avenue',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+    final inspections = _controller.inspections;
+    return Column(
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              SizedBox.expand(
+                child: Obx(() => GoogleMap(
+                  initialCameraPosition: const CameraPosition(
+                    target: LatLng(-33.8688, 151.2093),
+                    zoom: 12,
+                  ),
+                  markers: _controller.markers.toSet(),
+                  onMapCreated: (c) {
+                    mapController = c;
+                    _controller.onMapCreated(c);
+                  },
+                  myLocationEnabled: false,
+                  myLocationButtonEnabled: false,
+                  zoomControlsEnabled: false,
+                  mapToolbarEnabled: false,
+                )),
+              ),
+            ],
+          ),
+        ),
+        // Horizontal card strip — real data, scrollable
+        Container(
+          color: AppColors.background,
+          height: 200,
+          child: Obx(() {
+            final items = _controller.inspections;
+            if (items.isEmpty) {
+              return const Center(
+                child: Text('No inspections found',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              );
+            }
+            return PageView.builder(
+              controller: _controller.pageController,
+              itemCount: items.length,
+              onPageChanged: _controller.onPageChanged,
+              physics: const PageScrollPhysics(),
+              itemBuilder: (_, i) {
+                final item = items[i];
+                final statusColor =
+                    item.isPending ? const Color(0xFFF59E0B) : AppColors.primary;
+                return Obx(() {
+                  final isSelected = _controller.selectedIndex.value == i;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    margin: EdgeInsets.fromLTRB(8, isSelected ? 4 : 14, 8, isSelected ? 4 : 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isSelected ? AppColors.primary : AppColors.border,
+                        width: isSelected ? 2 : 1,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Text(
-                          'Type',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.complete,
-                          ),
-                        ),
-                        const Spacer(),
-                        const Text(
-                          'Entry',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.border,
-                          ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.12),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Text(
-                          'Date',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.complete,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                  width: 8, height: 8,
+                                  decoration: BoxDecoration(
+                                      color: statusColor, shape: BoxShape.circle)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  item.propertyAddress,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(item.statusLabel,
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: statusColor)),
+                              ),
+                            ],
                           ),
-                        ),
-                        const Spacer(),
-                        const Text(
-                          'Thu 29 Apr',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.cardBackground,
+                          const SizedBox(height: 7),
+                          Row(
+                            children: [
+                              const Icon(Icons.calendar_today,
+                                  size: 11, color: AppColors.textSecondary),
+                              const SizedBox(width: 4),
+                              Text(item.inspectionDate.split('T').first,
+                                  style: const TextStyle(
+                                      fontSize: 11, color: AppColors.textSecondary)),
+                              const SizedBox(width: 10),
+                              const Icon(Icons.access_time,
+                                  size: 11, color: AppColors.textSecondary),
+                              const SizedBox(width: 4),
+                              Text(item.inspectionTime,
+                                  style: const TextStyle(
+                                      fontSize: 11, color: AppColors.textSecondary)),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Text(
-                          'Status',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.cardBg,
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Text(item.typeLabel,
+                                    style: const TextStyle(
+                                        fontSize: 10, color: AppColors.textSecondary)),
+                              ),
+                              const Spacer(),
+                              Text(item.inspectorName,
+                                  style: const TextStyle(
+                                      fontSize: 10, color: AppColors.textSecondary)),
+                            ],
                           ),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.warning.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'Pending',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.warning,
+                          const Spacer(),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () =>
+                                  Get.toNamed('/inspection-detail', arguments: item),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text('Open Inspection →',
+                                  style: TextStyle(
+                                      fontSize: 12, fontWeight: FontWeight.w600)),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Get.toNamed('/inspection-detail'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Open Inspection →',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-            // Map legend
-            Positioned(
-              top: 20,
-              right: 20,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBg,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 12,
-                          height: 12,
-                          decoration: const BoxDecoration(
-                            color: Colors.orange,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'Pending',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.warning,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 12,
-                          height: 12,
-                          decoration: const BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'Complete',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.secondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+                  );
+                });
+              },
+            );
+          }),
         ),
-      ),
+      ],
     );
   }
 }
@@ -1408,134 +1169,47 @@ class NotificationsContent extends StatelessWidget {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
-          ),
-        ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          _buildNotificationItem(
-            'New Inspection',
-            'Assigned: 24 Wakhan Wall (Routine)',
-            '2h ago',
-            Icons.assignment,
-            AppColors.primary,
-            true,
-          ),
-          _buildNotificationItem(
-            'Inspection Submitted',
-            '33 Smith St (Entry)',
-            '4h ago',
-            Icons.check_circle,
-            AppColors.success,
-            false,
-          ),
-          _buildNotificationItem(
-            'Inspection Submitted',
-            '24 Smith St (Entry)',
-            '6h ago',
-            Icons.check_circle,
-            AppColors.success,
-            false,
-          ),
-          _buildNotificationItem(
-            'Reminder',
-            'Inspection due today at 3PM',
-            '1d ago',
-            Icons.schedule,
-            AppColors.warning,
-            false,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNotificationItem(
-    String title,
-    String subtitle,
-    String time,
-    IconData icon,
-    Color iconColor,
-    bool isUnread,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isUnread ? AppColors.primary.withOpacity(0.3) : AppColors.border,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.notifications_outlined,
+                size: 48,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Coming Soon',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Notifications will be available\nin a future update.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+          ],
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: isUnread ? FontWeight.w600 : FontWeight.w500,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    if (isUnread)
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  time,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

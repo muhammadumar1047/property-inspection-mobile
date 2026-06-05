@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -14,6 +15,7 @@ class InspectionListController extends GetxController {
   final isOffline = false.obs;
   var markers = <Marker>[].obs;
   GoogleMapController? mapController;
+  final _mapControllerCompleter = Completer<GoogleMapController>();
   late final PageController pageController;
 
   final inspections = <InspectionModel>[].obs;
@@ -76,6 +78,9 @@ class InspectionListController extends GetxController {
     if (connectivity.isOnline.value) {
       try {
         final response = await _api.getInspections();
+        debugPrint('=== INSPECTIONS RAW RESPONSE ===');
+        debugPrint(response.data.toString());
+        debugPrint('================================');
         if (response.data['success'] == true) {
           final parsed = InspectionListResponse.fromJson(response.data);
           inspections.assignAll(parsed.data.data);
@@ -99,93 +104,106 @@ class InspectionListController extends GetxController {
     isOffline.value = true;
   }
 
-  void toggleView() => isMapView.value = !isMapView.value;
+  void toggleView() {
+    isMapView.value = !isMapView.value;
+    // When switching to map view, fly to currently selected card's location
+    if (isMapView.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _animateCameraToIndex(selectedIndex.value);
+        _refreshMarkers(selectedIndex.value);
+      });
+    }
+  }
 
   // Called when user swipes the horizontal card list
   void onPageChanged(int index) {
     selectedIndex.value = index;
-    _animateCameraToIndex(index);
     _refreshMarkers(index);
+    _animateCameraToIndex(index);
   }
 
-  // Called when user taps a map marker
-  void onMarkerTapped(int index) {
-    selectedIndex.value = index;
+  // Called when user taps a map marker — index here is from inspectionsWithCoords
+  void onMarkerTapped(String inspectionId) {
+    final allList = inspections.toList();
+    final cardIndex = allList.indexWhere((i) => i.id == inspectionId);
+    if (cardIndex == -1) return;
+    selectedIndex.value = cardIndex;
     pageController.animateToPage(
-      index,
+      cardIndex,
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOut,
     );
-    _animateCameraToIndex(index);
-    _refreshMarkers(index);
+    _animateCameraToIndex(cardIndex);
+    _refreshMarkers(cardIndex);
   }
 
-  void _animateCameraToIndex(int index) {
-    final list = mappableInspections;
-    if (index >= list.length) return;
+  Future<void> _animateCameraToIndex(int index) async {
+    final list = inspections.toList();
+    if (index < 0 || index >= list.length) return;
     final lat = list[index].property?.latitude;
     final lng = list[index].property?.longitude;
     if (lat == null || lng == null || (lat == 0 && lng == 0)) return;
-    mapController?.animateCamera(
+    // Wait for map controller to be ready before animating
+    final ctrl = await _mapControllerCompleter.future;
+    ctrl.animateCamera(
       CameraUpdate.newCameraPosition(
         CameraPosition(target: LatLng(lat, lng), zoom: 15),
       ),
     );
   }
 
-  void _refreshMarkers(int selectedIdx) {
-    final allList = mappableInspections;
+  void _refreshMarkers(int selectedCardIndex) {
+    final allList = inspections.toList();
+    final selectedId = (selectedCardIndex >= 0 && selectedCardIndex < allList.length)
+        ? allList[selectedCardIndex].id
+        : null;
     markers.value = allList
-        .asMap()
-        .entries
         .where((e) {
-          final p = e.value.property;
+          final p = e.property;
           return p?.latitude != null &&
               p?.longitude != null &&
               !(p!.latitude == 0 && p.longitude == 0);
         })
-        .map((e) {
-          final i = e.key;
-          final inspection = e.value;
+        .map((inspection) {
+          final isSelected = inspection.id == selectedId;
           return Marker(
             markerId: MarkerId(inspection.id),
             position: LatLng(
               inspection.property!.latitude!,
               inspection.property!.longitude!,
             ),
-            icon: i == selectedIdx
-                ? BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueAzure,
-                  )
+            icon: isSelected
+                ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure)
                 : BitmapDescriptor.defaultMarker,
             infoWindow: InfoWindow(
               title: inspection.propertyAddress,
               snippet: '${inspection.typeLabel} · ${inspection.statusLabel}',
             ),
-            onTap: () => onMarkerTapped(i),
+            onTap: () => onMarkerTapped(inspection.id),
           );
         })
         .toList();
   }
 
-  void setupMarkers() => _refreshMarkers(selectedIndex.value);
+  void setupMarkers() {
+    _refreshMarkers(selectedIndex.value);
+    debugPrint('=== SETUP MARKERS ===');
+    debugPrint('Total inspections: ${inspections.length}');
+    debugPrint('Inspections with coords: ${inspectionsWithCoords.length}');
+    for (final i in inspections) {
+      debugPrint('  [${i.propertyAddress}] lat=${i.property?.latitude}, lng=${i.property?.longitude}');
+    }
+    debugPrint('=====================');
+    _animateCameraToIndex(selectedIndex.value);
+  }
 
   void onMapCreated(GoogleMapController controller) {
     mapController = controller;
-    if (inspectionsWithCoords.isNotEmpty) {
-      final first = inspectionsWithCoords.first;
-      mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(
-              first.property!.latitude!,
-              first.property!.longitude!,
-            ),
-            zoom: 14,
-          ),
-        ),
-      );
+    if (!_mapControllerCompleter.isCompleted) {
+      _mapControllerCompleter.complete(controller);
     }
+    // Fly to selected index once map is ready
+    _animateCameraToIndex(selectedIndex.value);
   }
 
   // Kept for backward compat

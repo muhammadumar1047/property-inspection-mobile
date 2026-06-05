@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../data/models/login_model.dart';
 import '../../data/services/api_service.dart';
@@ -13,6 +14,7 @@ class AuthController extends GetxController {
   final password = ''.obs;
   final obscurePassword = true.obs;
   final isLoading = false.obs;
+  final isForgotLoading = false.obs;
 
   final Rxn<UserModel> currentUser = Rxn<UserModel>();
   final token = ''.obs;
@@ -64,6 +66,39 @@ class AuthController extends GetxController {
       Get.snackbar('Error', message);
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<bool> forgotPassword(String email) async {
+    if (email.trim().isEmpty) {
+      Get.snackbar('Error', 'Please enter your email address',
+          snackPosition: SnackPosition.BOTTOM);
+      return false;
+    }
+    isForgotLoading.value = true;
+    try {
+      final response = await _apiService.forgotPassword(email.trim());
+      final success = response.data['success'] == true;
+      final message = response.data['message']?.toString() ??
+          (success ? 'Reset link sent to your email.' : 'Request failed.');
+      Get.snackbar(
+        success ? 'Email Sent' : 'Error',
+        message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: success ? Colors.green : Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 4),
+      );
+      return success;
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message'] ?? e.message ?? 'Something went wrong';
+      Get.snackbar('Error', msg,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white);
+      return false;
+    } finally {
+      isForgotLoading.value = false;
     }
   }
 

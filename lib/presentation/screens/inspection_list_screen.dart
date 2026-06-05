@@ -342,6 +342,27 @@ class _InspectionListScreenState extends State<InspectionListScreen> {
 
   Widget _buildMapView() {
     final coordList = controller.inspectionsWithCoords;
+    final selectedIdx = controller.selectedIndex.value;
+    // Use selected card's coords if available, else first with coords, else Sydney
+    LatLng initialTarget = const LatLng(-33.8688, 151.2093);
+    if (selectedIdx < controller.inspections.length) {
+      final sel = controller.inspections[selectedIdx];
+      final lat = sel.property?.latitude;
+      final lng = sel.property?.longitude;
+      if (lat != null && lng != null && !(lat == 0 && lng == 0)) {
+        initialTarget = LatLng(lat, lng);
+      } else if (coordList.isNotEmpty) {
+        initialTarget = LatLng(
+          coordList.first.property!.latitude!,
+          coordList.first.property!.longitude!,
+        );
+      }
+    } else if (coordList.isNotEmpty) {
+      initialTarget = LatLng(
+        coordList.first.property!.latitude!,
+        coordList.first.property!.longitude!,
+      );
+    }
     return Column(
       children: [
         Expanded(
@@ -352,12 +373,7 @@ class _InspectionListScreenState extends State<InspectionListScreen> {
                   () => GoogleMap(
                     onMapCreated: controller.onMapCreated,
                     initialCameraPosition: CameraPosition(
-                      target: coordList.isNotEmpty
-                          ? LatLng(
-                              coordList.first.property!.latitude!,
-                              coordList.first.property!.longitude!,
-                            )
-                          : const LatLng(-33.8688, 151.2093),
+                      target: initialTarget,
                       zoom: 14,
                     ),
                     markers: controller.markers.toSet(),

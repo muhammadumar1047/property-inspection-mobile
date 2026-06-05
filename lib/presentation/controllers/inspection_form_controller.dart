@@ -162,14 +162,20 @@ class InspectionFormController extends GetxController {
         source: ImageSource.camera,
         imageQuality: 80,
       );
-      if (file == null) break; // user cancelled camera
+      // User cancelled camera — exit cleanly
+      if (file == null) break;
       photoValues[_ik(a, i)]!.add(file.path);
       update(['form']);
-      // Ask if they want to take another
-      final takeAnother = await Get.dialog<bool>(
-        _QuickCaptureDialog(count: photoValues[_ik(a, i)]!.length),
-        barrierDismissible: false,
+      // Show bottom sheet asking to take another
+      final takeAnother = await showModalBottomSheet<bool>(
+        context: Get.context!,
+        backgroundColor: Colors.transparent,
+        isDismissible: true,
+        enableDrag: true,
+        builder: (_) => _QuickCaptureSheet(
+            count: photoValues[_ik(a, i)]!.length),
       );
+      // null = dismissed by drag/back = done
       if (takeAnother != true) break;
     }
   }
@@ -582,89 +588,95 @@ class InspectionFormController extends GetxController {
   }
 }
 
-class _QuickCaptureDialog extends StatelessWidget {
+class _QuickCaptureSheet extends StatelessWidget {
   final int count;
-  const _QuickCaptureDialog({required this.count});
+  const _QuickCaptureSheet({required this.count});
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E2E),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)],
-                ),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.camera_alt, color: Colors.white, size: 28),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E1E2E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
             ),
-            const SizedBox(height: 16),
-            Text(
-              '$count photo${count == 1 ? '' : 's'} captured',
-              style: const TextStyle(
+          ),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.camera_alt, color: Colors.white, size: 28),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            '$count photo${count == 1 ? '' : 's'} captured',
+            style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Take another photo?',
+            style: TextStyle(color: Colors.white60, fontSize: 13),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Done'),
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Take another photo?',
-              style: TextStyle(color: Colors.white60, fontSize: 13),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Get.back(result: false),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white70,
-                      side: const BorderSide(color: Colors.white24),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Done'),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6C63FF),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.camera_alt, size: 16),
+                      SizedBox(width: 6),
+                      Text('Next Shot'),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => Get.back(result: true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6C63FF),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.camera_alt, size: 16),
-                        SizedBox(width: 6),
-                        Text('Next Shot'),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

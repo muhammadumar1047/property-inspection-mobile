@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -633,54 +635,20 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
             const SizedBox(height: 8),
             Row(
               children: [
-                // Mic button
-                Obx(() {
-                  final listening = _ctrl.isListening.value;
-                  return GestureDetector(
-                    onTap: () {
-                      if (listening) {
-                        _ctrl.stopListening();
-                      } else {
-                        _ctrl.startListening((words) {
-                          setState(() {
-                            _commentCtrl(ik).text = words;
-                            _commentCtrl(ik).selection = TextSelection.fromPosition(
-                                TextPosition(offset: _commentCtrl(ik).text.length));
-                          });
-                        });
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: listening ? Colors.red.shade50 : AppColors.cardBg,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: listening ? Colors.red : AppColors.border),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            listening ? Icons.stop_circle : Icons.mic,
-                            size: 16,
-                            color: listening ? Colors.red : AppColors.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            listening ? 'Stop' : 'Speak',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: listening ? Colors.red : AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
+                // WhatsApp-style hold-to-record mic
+                _VoiceMicButton(
+                  onRecorded: (words) {
+                    setState(() {
+                      final current = _commentCtrl(ik).text;
+                      _commentCtrl(ik).text =
+                          current.isEmpty ? words : '$current $words';
+                      _commentCtrl(ik).selection = TextSelection.fromPosition(
+                          TextPosition(offset: _commentCtrl(ik).text.length));
+                    });
+                  },
+                  ctrl: _ctrl,
+                ),
                 const Spacer(),
-                // Send button
                 ElevatedButton(
                   onPressed: () => _submitInlineComment(ik, aIdx, iIdx),
                   style: ElevatedButton.styleFrom(
@@ -1092,6 +1060,179 @@ class _LabelEditorSheetState extends State<_LabelEditorSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── WhatsApp-style press-and-hold mic button ─────────────────────────────
+
+class _VoiceMicButton extends StatefulWidget {
+  final void Function(String words) onRecorded;
+  final InspectionFormController ctrl;
+
+  const _VoiceMicButton({required this.onRecorded, required this.ctrl});
+
+  @override
+  State<_VoiceMicButton> createState() => _VoiceMicButtonState();
+}
+
+class _VoiceMicButtonState extends State<_VoiceMicButton> {
+  bool _recording = false;
+  bool _cancelled = false;
+  int _seconds = 0;
+  Timer? _timer;
+  Timer? _waveTimer;
+  final List<double> _bars = List.filled(5, 0.3);
+  double _dragX = 0;
+
+  static const double _cancelThreshold = -60;
+
+  void _start(Offset localPos) {
+    if (_recording) return;
+    _cancelled = false;
+    _dragX = 0;
+    _seconds = 0;
+    setState(() => _recording = true);
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _seconds++);
+    });
+
+    _waveTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
+      if (!mounted) return;
+      final rng = Random();
+      setState(() {
+        for (var i = 0; i < _bars.length; i++) {
+          _bars[i] = 0.2 + rng.nextDouble() * 0.8;
+        }
+      });
+    });
+
+    widget.ctrl.startListening((words) {
+      if (!_cancelled && words.isNotEmpty) widget.onRecorded(words);
+      _stop();
+    });
+  }
+
+  void _stop() {
+    _timer?.cancel();
+    _waveTimer?.cancel();
+    _timer = null;
+    _waveTimer = null;
+    if (mounted) setState(() => _recording = false);
+  }
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    _dragX += d.delta.dx;
+    if (_dragX < _cancelThreshold) {
+      _cancelled = true;
+      widget.ctrl.stopListening();
+      _stop();
+    } else {
+      setState(() {});
+    }
+  }
+
+  void _onEnd() {
+    if (_recording) {
+      widget.ctrl.stopListening();
+      _stop();
+    }
+  }
+
+  String get _timeLabel {
+    final m = _seconds ~/ 60;
+    final s = _seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _waveTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_recording) {
+      return GestureDetector(
+        onTapDown: (d) => _start(d.localPosition),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withAlpha(20),
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.primary.withAlpha(80)),
+          ),
+          child: const Icon(Icons.mic, color: AppColors.primary, size: 18),
+        ),
+      );
+    }
+
+    // Recording overlay — slide-to-cancel bar
+    return GestureDetector(
+      onHorizontalDragUpdate: _onDragUpdate,
+      onHorizontalDragEnd: (_) => _onEnd(),
+      onTapUp: (_) => _onEnd(),
+      child: Container(
+        height: 38,
+        constraints: const BoxConstraints(minWidth: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withAlpha(15),
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: AppColors.primary.withAlpha(60)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Animated mic icon
+            const Icon(Icons.mic, color: Colors.red, size: 16),
+            const SizedBox(width: 6),
+            // Waveform bars
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: List.generate(_bars.length, (i) {
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
+                  width: 3,
+                  height: 6 + _bars[i] * 18,
+                  margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(width: 8),
+            // Timer
+            Text(
+              _timeLabel,
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontFeatures: [FontFeature.tabularFigures()]),
+            ),
+            const SizedBox(width: 8),
+            // Slide to cancel hint — shifts with drag
+            Transform.translate(
+              offset: Offset(_dragX.clamp(_cancelThreshold, 0), 0),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.chevron_left, size: 14, color: AppColors.textHint),
+                  Text('Cancel',
+                      style: TextStyle(fontSize: 10, color: AppColors.textHint)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

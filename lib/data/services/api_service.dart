@@ -43,6 +43,9 @@ class ApiService {
   Future<Response> login(String email, String password) =>
       _dio.post('/api/auth/login', data: {'email': email, 'password': password});
 
+  Future<Response> forgotPassword(String email) =>
+      _dio.post('/api/Auth/forgot-password', data: {'email': email});
+
   Future<Response> getInspections({int page = 1, int pageSize = 100}) async {
     final options = await _authOptions();
     return _dio.get(
@@ -75,8 +78,11 @@ class ApiService {
     required String inspectionId,
     required String filePath,
   }) async {
+    final ext = filePath.split('.').last.toLowerCase();
+    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+
+    // Step 1: get pre-signed uploadUrl + permanent fileUrl
     final options = await _authOptions();
-    // Step 1: get pre-signed uploadUrl + permanent fileUrl from our API
     final response = await _dio.get(
       '/api/S3/generate-upload-url',
       queryParameters: {
@@ -84,30 +90,31 @@ class ApiService {
         'propertyId': propertyId,
         'inspectionId': inspectionId,
         'mediaType': 'photo',
+        'contentType': contentType,
       },
       options: options,
     );
-    print('generateUploadUrl response: ${response.data}');
-    final data = response.data is Map ? response.data as Map : {};
-    final uploadUrl = (data['uploadUrl'] ?? data['upload_url'] ?? '').toString();
-    final fileUrl = (data['fileUrl'] ?? data['file_url'] ?? data['url'] ?? '').toString();
 
-    if (uploadUrl.isEmpty) throw Exception('No uploadUrl in response: $data');
+    // Response shape: { success, data: { uploadUrl, fileUrl, fileKey, photoId } }
+    final body = response.data is Map ? response.data as Map : {};
+    final dataMap = (body['data'] is Map ? body['data'] : body) as Map;
+    final uploadUrl = (dataMap['uploadUrl'] ?? dataMap['upload_url'] ?? '').toString();
+    final fileUrl = (dataMap['fileUrl'] ?? dataMap['file_url'] ?? dataMap['url'] ?? '').toString();
 
-    // Step 2: PUT file bytes directly to S3 using separate Dio (no baseUrl, no Bearer token)
+    if (uploadUrl.isEmpty) throw Exception('No uploadUrl in response: $body');
+
+    // Step 2: PUT raw bytes to S3 — only Content-Type header, NO Content-Length
     final bytes = await File(filePath).readAsBytes();
-    final ext = filePath.split('.').last.toLowerCase();
-    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
     await _s3Dio.put(
       uploadUrl,
-      data: Stream.fromIterable(bytes.map((e) => [e])),
+      data: bytes,
       options: Options(
-        headers: {
-          'Content-Type': contentType,
-          'Content-Length': bytes.length,
-        },
+        headers: {'Content-Type': contentType},
+        // Disable Dio's default content-type override
+        contentType: contentType,
       ),
     );
+
     return fileUrl.isNotEmpty ? fileUrl : uploadUrl.split('?').first;
   }
 
