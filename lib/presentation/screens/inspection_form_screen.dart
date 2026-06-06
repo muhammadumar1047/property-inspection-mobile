@@ -36,6 +36,9 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
       _commentInputVisible[ik] = !wasVisible;
       if (!wasVisible) {
         _commentCtrl(ik).text = prefill;
+        _ctrl.filterSuggestions(prefill);
+      } else {
+        _ctrl.filteredSuggestions.clear();
       }
     });
   }
@@ -45,6 +48,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
     if (text.isNotEmpty) _ctrl.addComment(aIdx, iIdx, text);
     _commentCtrl(ik).clear();
     _ctrl.stopListening();
+    _ctrl.filteredSuggestions.clear();
     setState(() => _commentInputVisible[ik] = false);
   }
 
@@ -549,6 +553,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
                   onPressed: () {
                     if (inputVisible) {
                       _ctrl.stopListening();
+                      _ctrl.filteredSuggestions.clear();
                       _commentCtrl(ik).clear();
                       setState(() => _commentInputVisible[ik] = false);
                     } else {
@@ -614,6 +619,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
               maxLines: 3,
               minLines: 1,
+              onChanged: (val) => _ctrl.filterSuggestions(val),
               decoration: InputDecoration(
                 hintText: 'Write a comment...',
                 hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 12),
@@ -632,6 +638,44 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
                     borderSide: const BorderSide(color: AppColors.primary)),
               ),
             ),
+            // Suggestions
+            Obx(() {
+              final sugs = _ctrl.filteredSuggestions;
+              if (sugs.isEmpty) return const SizedBox.shrink();
+              return Container(
+                margin: const EdgeInsets.only(top: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.cardBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  children: sugs.map((s) => InkWell(
+                    onTap: () {
+                      _commentCtrl(ik).text = s;
+                      _commentCtrl(ik).selection = TextSelection.fromPosition(
+                          TextPosition(offset: s.length));
+                      _ctrl.filteredSuggestions.clear();
+                      setState(() {});
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lightbulb_outline, size: 13, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(s,
+                                style: const TextStyle(
+                                    fontSize: 12, color: AppColors.textPrimary)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )).toList(),
+                ),
+              );
+            }),
             const SizedBox(height: 8),
             Row(
               children: [

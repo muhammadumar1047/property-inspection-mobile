@@ -31,6 +31,47 @@ class InspectionFormController extends GetxController {
   final Map<String, dynamic> conditionValues = {};
   // key: 'areaIdx-itemIdx' → List<String>
   final Map<String, List<String>> commentValues = {};
+  final suggestions = <String>[].obs;
+  final filteredSuggestions = <String>[].obs;
+
+  Future<void> fetchSuggestions() async {
+    final item = inspection.value;
+    if (item == null) return;
+    try {
+      final type = (item.inspectionType == 1 || item.inspectionType == 2) ? 1 : 2;
+      final response = await _api.getQuickSuggestions(agencyId: item.agencyId, type: type);
+      print('QuickSuggestions response: ${response.data}');
+      if (response.data['success'] == true) {
+        final raw = response.data['data'];
+        final List<dynamic> data = raw is List
+            ? raw
+            : (raw is Map && raw['data'] is List ? raw['data'] as List : []);
+        // Try common key names: suggestion, text, comment, name, value
+        suggestions.assignAll(
+          data.map((e) {
+            if (e is Map) {
+              return (e['suggestion'] ?? e['text'] ?? e['comment'] ?? e['name'] ?? e['value'] ?? '').toString();
+            }
+            return e.toString();
+          }).where((s) => s.isNotEmpty),
+        );
+        print('Loaded ${suggestions.length} suggestions');
+      }
+    } catch (e) {
+      print('fetchSuggestions error: $e');
+    }
+  }
+
+  void filterSuggestions(String query) {
+    if (query.trim().isEmpty) {
+      // Show first 5 when input is empty/cleared
+      filteredSuggestions.assignAll(suggestions.take(5));
+      return;
+    }
+    filteredSuggestions.assignAll(
+      suggestions.where((s) => s.toLowerCase().contains(query.toLowerCase())).take(5),
+    );
+  }
   // key: 'areaIdx-itemIdx' → List<String> (local paths or uploaded URLs)
   final Map<String, List<String>> photoValues = {};
   // key: 'areaIdx-itemIdx-photoIdx' → label text
@@ -63,12 +104,13 @@ class InspectionFormController extends GetxController {
     isLoading.value = true;
     errorMessage.value = '';
     try {
-      final isEntryExit = item.inspectionType == 2 || item.inspectionType == 3;
+      final isEntryExit = item.inspectionType == 1 || item.inspectionType == 2;
       final response = await _api.getReportTemplate(item.id, isEntryExit: isEntryExit);
       if (response.data['success'] == true) {
         final parsed = ReportTemplateResponse.fromJson(response.data);
         template.value = parsed.data;
         _initFormState(parsed.data);
+        fetchSuggestions();
       } else {
         errorMessage.value = response.data['message'] ?? 'Failed to load template';
       }

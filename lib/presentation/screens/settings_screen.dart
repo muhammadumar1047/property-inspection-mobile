@@ -30,8 +30,6 @@ class SettingsScreen extends GetView<SettingsController> {
           children: [
             _buildProfileSection(),
             const SizedBox(height: 24),
-            _buildSettingsSection(),
-            const SizedBox(height: 24),
             _buildAboutSection(),
             const SizedBox(height: 24),
             _buildLogoutButton(),
@@ -111,75 +109,6 @@ class SettingsScreen extends GetView<SettingsController> {
     );
   }
 
-  Widget _buildSettingsSection() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppColors.cardGradient,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Preferences',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          // TODO: Uncomment when features are ready
-          // const SizedBox(height: 16),
-          // Obx(() => _buildSettingItem(
-          //   'Notifications',
-          //   'Receive push notifications',
-          //   Icons.notifications_outlined,
-          //   Switch(
-          //     value: controller.notificationsEnabled.value,
-          //     onChanged: controller.toggleNotifications,
-          //     activeColor: AppColors.primary,
-          //   ),
-          // )),
-          // _buildDivider(),
-          // Obx(() => _buildSettingItem(
-          //   'Auto Sync',
-          //   'Automatically sync data',
-          //   Icons.sync,
-          //   Switch(
-          //     value: controller.autoSyncEnabled.value,
-          //     onChanged: controller.toggleAutoSync,
-          //     activeColor: AppColors.primary,
-          //   ),
-          // )),
-          // _buildDivider(),
-          // _buildSettingItem(
-          //   'Language',
-          //   'English',
-          //   Icons.language,
-          //   Icon(
-          //     Icons.arrow_forward_ios,
-          //     color: AppColors.textSecondary,
-          //     size: 16,
-          //   ),
-          // ),
-          // _buildDivider(),
-          // _buildSettingItem(
-          //   'Data Usage',
-          //   'Manage data preferences',
-          //   Icons.data_usage,
-          //   Icon(
-          //     Icons.arrow_forward_ios,
-          //     color: AppColors.textSecondary,
-          //     size: 16,
-          //   ),
-          // ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildAboutSection() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -200,40 +129,36 @@ class SettingsScreen extends GetView<SettingsController> {
             ),
           ),
           const SizedBox(height: 16),
-          // TODO: Uncomment when features are ready
-          // _buildSettingItem(
-          //   'Help & Support',
-          //   'Get help and contact support',
-          //   Icons.help_outline,
-          //   Icon(
-          //     Icons.arrow_forward_ios,
-          //     color: AppColors.textSecondary,
-          //     size: 16,
-          //   ),
-          // ),
-          // _buildDivider(),
-          // _buildSettingItem(
-          //   'Privacy Policy',
-          //   'Read our privacy policy',
-          //   Icons.privacy_tip_outlined,
-          //   Icon(
-          //     Icons.arrow_forward_ios,
-          //     color: AppColors.textSecondary,
-          //     size: 16,
-          //   ),
-          // ),
-          // _buildDivider(),
-          // _buildSettingItem(
-          //   'Terms of Service',
-          //   'Read terms and conditions',
-          //   Icons.description_outlined,
-          //   Icon(
-          //     Icons.arrow_forward_ios,
-          //     color: AppColors.textSecondary,
-          //     size: 16,
-          //   ),
-          // ),
-          // _buildDivider(),
+          GestureDetector(
+            onTap: () => Get.toNamed('/support'),
+            child: _buildSettingItem(
+              'Help & Support',
+              'Get help and contact support',
+              Icons.help_outline,
+              const Icon(Icons.arrow_forward_ios, color: AppColors.textSecondary, size: 16),
+            ),
+          ),
+          _buildDivider(),
+          GestureDetector(
+            onTap: () => Get.toNamed('/privacy-policy'),
+            child: _buildSettingItem(
+              'Privacy Policy',
+              'Read our privacy policy',
+              Icons.privacy_tip_outlined,
+              const Icon(Icons.arrow_forward_ios, color: AppColors.textSecondary, size: 16),
+            ),
+          ),
+          _buildDivider(),
+          GestureDetector(
+            onTap: () => Get.toNamed('/terms'),
+            child: _buildSettingItem(
+              'Terms of Service',
+              'Read terms and conditions',
+              Icons.description_outlined,
+              const Icon(Icons.arrow_forward_ios, color: AppColors.textSecondary, size: 16),
+            ),
+          ),
+          _buildDivider(),
           _buildSettingItem(
             'App Version',
             'v1.0.0',
@@ -294,13 +219,13 @@ class SettingsScreen extends GetView<SettingsController> {
   }
 
   // TODO: Uncomment when dividers are needed again
-  // Widget _buildDivider() {
-  //   return Container(
-  //     margin: const EdgeInsets.symmetric(vertical: 8),
-  //     height: 1,
-  //     color: AppColors.cardBorder,
-  //   );
-  // }
+  Widget _buildDivider() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      height: 1,
+      color: AppColors.cardBorder,
+    );
+  }
 
   Widget _buildLogoutButton() {
     return Container(

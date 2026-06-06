@@ -73,7 +73,7 @@ var width,height;
                 _navItem(Icons.home_rounded, Icons.home_outlined, 'Home', 0, current),
                 _navItem(Icons.list_alt_rounded, Icons.list_alt_outlined, 'Inspect', 1, current),
                 _navItem(Icons.calendar_month_rounded, Icons.calendar_month_outlined, 'Calendar', 2, current),
-                _navItem(Icons.notifications_rounded, Icons.notifications_outlined, 'Alerts', 3, current),
+                _navItem(Icons.notifications_rounded, Icons.notifications_outlined, 'Alerts', 0, current),
                 _navItem(Icons.person_rounded, Icons.person_outline_rounded, 'Profile', 4, current),
               ],
             ),
@@ -202,7 +202,7 @@ class DashboardContent extends GetView<DashboardController> {
                 child: Container(
                   width: 18, height: 18,
                   decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
-                  child: const Center(child: Text('3', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
+                  child: const Center(child: Text('0', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
                 ),
               ),
             ],

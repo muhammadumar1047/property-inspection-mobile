@@ -62,6 +62,15 @@ class ApiService {
     return _dio.get('/api/auth/profile', options: options);
   }
 
+  Future<Response> getQuickSuggestions({required String agencyId, required int type}) async {
+    final options = await _authOptions();
+    return _dio.get(
+      '/api/QuickSuggestions',
+      queryParameters: {'type': type, 'page': 1, 'pageSize': 10000, 'agencyId': agencyId},
+      options: options,
+    );
+  }
+
   Future<Response> getReportTemplate(String inspectionId, {required bool isEntryExit}) async {
     final options = await _authOptions();
     final path = isEntryExit

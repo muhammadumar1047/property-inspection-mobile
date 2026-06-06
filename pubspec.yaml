@@ -2,7 +2,7 @@ name: primesoftware
 description: "A professional property inspection application."
 publish_to: 'none'
 
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
   sdk: ^3.11.1

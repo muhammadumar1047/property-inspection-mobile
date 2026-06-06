@@ -17,6 +17,8 @@ import '../presentation/screens/checklist_screen.dart';
 import '../presentation/screens/photo_review_screen.dart';
 import '../presentation/screens/routine_report_screen.dart';
 import '../presentation/screens/sync_progress_screen.dart';
+import '../presentation/screens/privacy_policy_screen.dart';
+import '../presentation/screens/terms_screen.dart';
 import '../presentation/screens/support_screen.dart';
 import '../presentation/screens/main_screen.dart';
 import '../presentation/screens/edit_profile_screen.dart';
@@ -109,6 +111,14 @@ class AppRoutes {
     GetPage(
       name: support,
       page: () => const SupportScreen(),
+    ),
+    GetPage(
+      name: '/privacy-policy',
+      page: () => const PrivacyPolicyScreen(),
+    ),
+    GetPage(
+      name: '/terms',
+      page: () => const TermsScreen(),
     ),
     GetPage(
       name: '/edit-profile',
