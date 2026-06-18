@@ -85,7 +85,6 @@ class EditProfileController extends GetxController {
     await Future.delayed(const Duration(seconds: 1));
     _storage.write('firstName', firstNameController.text.trim());
     _storage.write('lastName', lastNameController.text.trim());
-    _storage.write('email', emailController.text.trim());
     if (profileImagePath.value != null) {
       _storage.write('profileImage', profileImagePath.value);
     }

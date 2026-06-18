@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:signature/signature.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import '../../data/models/inspection_model.dart';
 import '../../data/models/report_template_model.dart';
@@ -64,8 +65,7 @@ class InspectionFormController extends GetxController {
 
   void filterSuggestions(String query) {
     if (query.trim().isEmpty) {
-      // Show first 5 when input is empty/cleared
-      filteredSuggestions.assignAll(suggestions.take(5));
+      filteredSuggestions.clear();
       return;
     }
     filteredSuggestions.assignAll(
@@ -76,8 +76,12 @@ class InspectionFormController extends GetxController {
   final Map<String, List<String>> photoValues = {};
   // key: 'areaIdx-itemIdx-photoIdx' → label text
   final Map<String, String> photoLabels = {};
+  // key: 'areaIdx-itemIdx' → List<String> (local paths or uploaded URLs)
+  final Map<String, List<String>> videoValues = {};
   // key: 'areaIdx-itemIdx' → bool
   final Map<String, bool> expandedState = {};
+
+  bool get isRoutineInspection => inspection.value?.inspectionType == 3;
 
   ConnectivityService get _connectivity => Get.find<ConnectivityService>();
 
@@ -104,20 +108,47 @@ class InspectionFormController extends GetxController {
     isLoading.value = true;
     errorMessage.value = '';
     try {
-      final isEntryExit = item.inspectionType == 1 || item.inspectionType == 2;
-      final response = await _api.getReportTemplate(item.id, isEntryExit: isEntryExit);
-      if (response.data['success'] == true) {
-        final parsed = ReportTemplateResponse.fromJson(response.data);
+      // Always try network first
+      if (_connectivity.isOnline.value) {
+        final response = await _api.getReportTemplate(item.id, isEntryExit: item.inspectionType == 1 || item.inspectionType == 2);
+        if (response.data['success'] == true) {
+          // Cache the raw response for offline use
+          await StorageService.saveTemplate(item.id, response.data as Map<String, dynamic>);
+          final parsed = ReportTemplateResponse.fromJson(response.data);
+          template.value = parsed.data;
+          _initFormState(parsed.data);
+          // Restore any in-progress draft on top of the fresh template
+          await _restoreDraft();
+          fetchSuggestions();
+          return;
+        } else {
+          errorMessage.value = response.data['message'] ?? 'Failed to load template';
+          return;
+        }
+      }
+      // Offline: load from cache
+      final cached = await StorageService.getCachedTemplate(item.id);
+      if (cached != null) {
+        final parsed = ReportTemplateResponse.fromJson(cached);
         template.value = parsed.data;
         _initFormState(parsed.data);
-        fetchSuggestions();
+        // Restore draft on top of fresh init
+        await _restoreDraft();
       } else {
-        errorMessage.value = response.data['message'] ?? 'Failed to load template';
+        errorMessage.value = 'No internet connection and no cached template found.';
       }
-    } catch (e, st) {
+    } catch (e) {
       if (e.toString().contains('TickerProvider') || e.toString().contains('Ticker')) rethrow;
-      print('fetchTemplate error: $e\n$st');
-      errorMessage.value = 'Failed to load inspection template: $e';
+      // Network failed — try cache
+      final cached = await StorageService.getCachedTemplate(item.id);
+      if (cached != null) {
+        final parsed = ReportTemplateResponse.fromJson(cached);
+        template.value = parsed.data;
+        _initFormState(parsed.data);
+        await _restoreDraft();
+      } else {
+        errorMessage.value = 'Failed to load inspection template. Please connect to the internet.';
+      }
     } finally {
       isLoading.value = false;
     }
@@ -128,6 +159,7 @@ class InspectionFormController extends GetxController {
     commentValues.clear();
     photoValues.clear();
     photoLabels.clear();
+    videoValues.clear();
     expandedState.clear();
     for (var aIdx = 0; aIdx < t.reportAreas.length; aIdx++) {
       final area = t.reportAreas[aIdx];
@@ -140,26 +172,100 @@ class InspectionFormController extends GetxController {
             .where((t) => t.isNotEmpty)
             .toList();
         photoValues[ik] = [];
+        videoValues[ik] = [];
         for (var cIdx = 0; cIdx < item.reportItemConditions.length; cIdx++) {
           final cond = item.reportItemConditions[cIdx];
           conditionValues[_ck(aIdx, iIdx, cIdx)] = cond.type == 'boolean'
-              ? (cond.value == true || cond.value == 'true')
+              ? (cond.value == true || cond.value == 'true'
+                  ? true
+                  : cond.value == false || cond.value == 'false'
+                      ? false
+                      : null) // null = blank/unset
               : (cond.value?.toString() ?? '');
         }
       }
     }
+    // After populating from template, restore any saved draft on top
+    // (called via _restoreDraft separately after online fetch too)
+  }
+
+  // ─── Draft persistence ────────────────────────────────────────────────────
+
+  Future<void> _restoreDraft() async {
+    final id = inspection.value?.id;
+    if (id == null) return;
+    final draft = await StorageService.getDraft(id);
+    if (draft == null) return;
+
+    // Restore condition values
+    final conds = draft['conditions'] as Map<String, dynamic>? ?? {};
+    conds.forEach((k, v) => conditionValues[k] = v);
+
+    // Restore comments
+    final comments = draft['comments'] as Map<String, dynamic>? ?? {};
+    comments.forEach((k, v) {
+      commentValues[k] = (v as List).cast<String>();
+    });
+
+    // Restore photo paths (only local paths that still exist on disk)
+    final photos = draft['photos'] as Map<String, dynamic>? ?? {};
+    photos.forEach((k, v) {
+      final paths = (v as List).cast<String>();
+      photoValues[k] = paths.where((p) => p.startsWith('http') || File(p).existsSync()).toList();
+    });
+
+    // Restore labels
+    final labels = draft['labels'] as Map<String, dynamic>? ?? {};
+    labels.forEach((k, v) => photoLabels[k] = v.toString());
+
+    // Restore video paths
+    final videos = draft['videos'] as Map<String, dynamic>? ?? {};
+    videos.forEach((k, v) {
+      final paths = (v as List).cast<String>();
+      videoValues[k] = paths.where((p) => p.startsWith('http') || File(p).existsSync()).toList();
+    });
+
+    update(['form']);
+  }
+
+  Future<void> _saveDraft() async {
+    final id = inspection.value?.id;
+    if (id == null) return;
+    await StorageService.saveDraft(id, {
+      'conditions': Map<String, dynamic>.from(conditionValues),
+      'comments': commentValues.map((k, v) => MapEntry(k, List<String>.from(v))),
+      'photos': photoValues.map((k, v) => MapEntry(k, List<String>.from(v))),
+      'labels': Map<String, String>.from(photoLabels),
+      'videos': videoValues.map((k, v) => MapEntry(k, List<String>.from(v))),
+    });
   }
 
   bool getBool(int a, int i, int c) => conditionValues[_ck(a, i, c)] == true;
+  bool? getBoolNullable(int a, int i, int c) {
+    final v = conditionValues[_ck(a, i, c)];
+    if (v == null) return null;
+    if (v == true || v == 'true') return true;
+    if (v == false || v == 'false') return false;
+    return null;
+  }
+
   String getText(int a, int i, int c) => conditionValues[_ck(a, i, c)]?.toString() ?? '';
 
   void setBool(int a, int i, int c, bool val) {
     conditionValues[_ck(a, i, c)] = val;
     update(['form']);
+    _saveDraft();
+  }
+
+  void setBoolNullable(int a, int i, int c, bool? val) {
+    conditionValues[_ck(a, i, c)] = val;
+    update(['form']);
+    _saveDraft();
   }
 
   void setText(int a, int i, int c, String val) {
     conditionValues[_ck(a, i, c)] = val;
+    _saveDraft();
   }
 
   List<String> getComments(int a, int i) => commentValues[_ik(a, i)] ?? [];
@@ -168,11 +274,13 @@ class InspectionFormController extends GetxController {
     commentValues[_ik(a, i)] ??= [];
     commentValues[_ik(a, i)]!.add(text);
     update(['form']);
+    _saveDraft();
   }
 
   void removeComment(int a, int i, int idx) {
     commentValues[_ik(a, i)]?.removeAt(idx);
     update(['form']);
+    _saveDraft();
   }
 
   List<String> getPhotos(int a, int i) => photoValues[_ik(a, i)] ?? [];
@@ -184,6 +292,7 @@ class InspectionFormController extends GetxController {
         photoValues[_ik(a, i)] ??= [];
         photoValues[_ik(a, i)]!.addAll(files.map((f) => f.path));
         update(['form']);
+        _saveDraft();
       }
     } else {
       final file = await _picker.pickImage(source: source, imageQuality: 80);
@@ -191,12 +300,13 @@ class InspectionFormController extends GetxController {
         photoValues[_ik(a, i)] ??= [];
         photoValues[_ik(a, i)]!.add(file.path);
         update(['form']);
+        _saveDraft();
       }
     }
   }
 
-  /// Quick capture: keeps opening camera until user taps Done.
-  /// Each captured photo is added to the list immediately.
+  /// Quick capture: opens the camera repeatedly, adding each photo immediately.
+  /// The loop ends when the user cancels/closes the camera.
   Future<void> quickCapture(int a, int i) async {
     photoValues[_ik(a, i)] ??= [];
     while (true) {
@@ -204,21 +314,10 @@ class InspectionFormController extends GetxController {
         source: ImageSource.camera,
         imageQuality: 80,
       );
-      // User cancelled camera — exit cleanly
       if (file == null) break;
       photoValues[_ik(a, i)]!.add(file.path);
       update(['form']);
-      // Show bottom sheet asking to take another
-      final takeAnother = await showModalBottomSheet<bool>(
-        context: Get.context!,
-        backgroundColor: Colors.transparent,
-        isDismissible: true,
-        enableDrag: true,
-        builder: (_) => _QuickCaptureSheet(
-            count: photoValues[_ik(a, i)]!.length),
-      );
-      // null = dismissed by drag/back = done
-      if (takeAnother != true) break;
+      _saveDraft();
     }
   }
 
@@ -226,13 +325,12 @@ class InspectionFormController extends GetxController {
 
   // ─── Voice to Text ────────────────────────────────────────────────────────
 
-  Future<void> startListening(void Function(String) onResult) async {
+  String _lastPartialWords = '';
+
+  Future<void> startListening(void Function(String) onPartialResult) async {
     if (!_speechInitialized) {
       _speechInitialized = await _speech.initialize(
-        onError: (e) {
-          // error_no_match / error_speech_timeout are non-fatal — just stop
-          isListening.value = false;
-        },
+        onError: (e) => isListening.value = false,
         onStatus: (s) {
           if (s == SpeechToText.doneStatus || s == SpeechToText.notListeningStatus) {
             isListening.value = false;
@@ -244,25 +342,28 @@ class InspectionFormController extends GetxController {
     if (!_speechInitialized) {
       Get.snackbar(
         'Microphone',
-        'Speech recognition is not available on this device. Please check microphone permissions.',
+        'Speech recognition is not available on this device.',
         snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 4),
       );
       return;
     }
     if (_speech.isListening) await _speech.stop();
+    _lastPartialWords = '';
     isListening.value = true;
-    String accumulated = '';
     await _speech.listen(
       onResult: (r) {
-        accumulated = r.recognizedWords;
-        if (r.finalResult && accumulated.isNotEmpty) {
-          onResult(accumulated);
+        _lastPartialWords = r.recognizedWords;
+        // Stream every partial result live into the text field
+        if (r.recognizedWords.isNotEmpty) {
+          onPartialResult(r.recognizedWords);
+        }
+        if (r.finalResult) {
           isListening.value = false;
         }
       },
-      listenFor: const Duration(seconds: 60),
-      pauseFor: const Duration(seconds: 4),
+      listenFor: const Duration(minutes: 5),
+      pauseFor: const Duration(seconds: 8),
       listenOptions: SpeechListenOptions(
         partialResults: true,
         cancelOnError: false,
@@ -271,10 +372,18 @@ class InspectionFormController extends GetxController {
     );
   }
 
+  /// Stops listening and returns the last accumulated text.
+  String stopListeningAndFlush() {
+    final words = _lastPartialWords;
+    _lastPartialWords = '';
+    if (_speech.isListening) _speech.stop();
+    isListening.value = false;
+    return words;
+  }
+
   void stopListening() {
-    if (_speech.isListening) {
-      _speech.stop();
-    }
+    _lastPartialWords = '';
+    if (_speech.isListening) _speech.stop();
     isListening.value = false;
   }
 
@@ -342,6 +451,61 @@ class InspectionFormController extends GetxController {
     return '$itemName has been inspected and is in satisfactory condition with no issues noted.';
   }
 
+  List<String> getVideos(int a, int i) => videoValues[_ik(a, i)] ?? [];
+
+  Future<void> recordVideo(int a, int i) async {
+    final file = await _picker.pickVideo(
+      source: ImageSource.camera,
+      maxDuration: const Duration(minutes: 5),
+    );
+    if (file == null) return;
+    videoValues[_ik(a, i)] ??= [];
+    videoValues[_ik(a, i)]!.add(file.path);
+    update(['form']);
+    _saveDraft();
+  }
+
+  void removeVideo(int a, int i, int idx) {
+    videoValues[_ik(a, i)]?.removeAt(idx);
+    update(['form']);
+    _saveDraft();
+  }
+
+  /// Opens the signature pad sheet and saves the result as a photo entry.
+  Future<void> captureSignature(int a, int i) async {
+    final signatureController = SignatureController(
+      penStrokeWidth: 3,
+      penColor: Colors.black,
+      exportBackgroundColor: Colors.white,
+    );
+
+    final confirmed = await Get.bottomSheet<bool>(
+      _SignaturePadSheet(controller: signatureController),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+    );
+
+    if (confirmed != true) {
+      signatureController.dispose();
+      return;
+    }
+
+    final bytes = await signatureController.toPngBytes();
+    signatureController.dispose();
+    if (bytes == null) return;
+
+    final dir = await getTemporaryDirectory();
+    final file = File(p.join(dir.path, 'signature_${DateTime.now().millisecondsSinceEpoch}.png'));
+    await file.writeAsBytes(bytes);
+
+    photoValues[_ik(a, i)] ??= [];
+    photoValues[_ik(a, i)]!.add(file.path);
+    final idx = photoValues[_ik(a, i)]!.length - 1;
+    photoLabels['${_ik(a, i)}-$idx'] = 'Signature';
+    update(['form']);
+    _saveDraft();
+  }
+
   void removePhoto(int a, int i, int idx) {
     final ik = _ik(a, i);
     photoValues[ik]?.removeAt(idx);
@@ -356,6 +520,7 @@ class InspectionFormController extends GetxController {
       }
     }
     update(['form']);
+    _saveDraft();
   }
 
   String getPhotoLabel(int a, int i, int idx) =>
@@ -368,6 +533,7 @@ class InspectionFormController extends GetxController {
       photoLabels['${_ik(a, i)}-$idx'] = label.trim();
     }
     update(['form']);
+    _saveDraft();
   }
 
   /// Burns label text onto the image and returns path to the new annotated file.
@@ -478,15 +644,22 @@ class InspectionFormController extends GetxController {
             .toList();
 
         final photos = (photoValues[ik] ?? []).asMap().entries
-            .where((e) => uploadedPhotoUrls.containsKey('$ik-${e.key}'))
-            .map((e) => {'url': uploadedPhotoUrls['$ik-${e.key}']!, 'type': 'photo'})
+            .where((e) => uploadedPhotoUrls.containsKey('photo-$ik-${e.key}'))
+            .map((e) => {'url': uploadedPhotoUrls['photo-$ik-${e.key}']!, 'type': 'photo'})
             .toList();
+
+        final videos = (videoValues[ik] ?? []).asMap().entries
+            .where((e) => uploadedPhotoUrls.containsKey('video-$ik-${e.key}'))
+            .map((e) => {'url': uploadedPhotoUrls['video-$ik-${e.key}']!, 'type': 'video'})
+            .toList();
+
+        final allMedia = [...photos, ...videos];
 
         return {
           'name': ri.name,
           'reportItemConditions': conditions,
           'reportItemComments': comments,
-          'reportMedia': photos,
+          'reportMedia': allMedia,
         };
       }).toList();
 
@@ -514,11 +687,13 @@ class InspectionFormController extends GetxController {
       final area = t.reportAreas[aIdx];
       for (var iIdx = 0; iIdx < area.reportItems.length; iIdx++) {
         final ik = _ik(aIdx, iIdx);
+
+        // Upload photos
         final photos = photoValues[ik] ?? [];
         for (var pIdx = 0; pIdx < photos.length; pIdx++) {
           final path = photos[pIdx];
           if (path.startsWith('http')) {
-            uploaded['$ik-$pIdx'] = path;
+            uploaded['photo-$ik-$pIdx'] = path;
             continue;
           }
           String uploadPath = path;
@@ -526,13 +701,31 @@ class InspectionFormController extends GetxController {
           if (label != null && label.isNotEmpty) {
             uploadPath = await _burnLabelOnImage(path, label);
           }
-          final fileUrl = await _api.uploadPhoto(
+          final fileUrl = await _api.uploadMedia(
             agencyId: item.agencyId,
             propertyId: item.propertyId,
             inspectionId: item.id,
             filePath: uploadPath,
           );
-          uploaded['$ik-$pIdx'] = fileUrl;
+          uploaded['photo-$ik-$pIdx'] = fileUrl;
+        }
+
+        // Upload videos (only present for Routine inspections)
+        final videos = videoValues[ik] ?? [];
+        for (var vIdx = 0; vIdx < videos.length; vIdx++) {
+          final path = videos[vIdx];
+          if (path.startsWith('http')) {
+            uploaded['video-$ik-$vIdx'] = path;
+            continue;
+          }
+          final fileUrl = await _api.uploadMedia(
+            agencyId: item.agencyId,
+            propertyId: item.propertyId,
+            inspectionId: item.id,
+            filePath: path,
+            isVideo: true,
+          );
+          uploaded['video-$ik-$vIdx'] = fileUrl;
         }
       }
     }
@@ -549,6 +742,7 @@ class InspectionFormController extends GetxController {
         // Save locally and notify user
         final payload = _buildPayload(uploadedPhotoUrls: {});
         await StorageService.savePendingReport(payload);
+        await StorageService.clearDraft(inspection.value!.id);
         Get.offAllNamed('/main');
         Get.snackbar(
           'Saved Offline',
@@ -567,6 +761,7 @@ class InspectionFormController extends GetxController {
 
       final response = await _api.syncReport(payload);
       if (response.data['success'] == true || response.statusCode == 200) {
+        await StorageService.clearDraft(inspection.value!.id);
         Get.offAllNamed('/main');
         Get.snackbar(
           'Success',
@@ -630,14 +825,19 @@ class InspectionFormController extends GetxController {
   }
 }
 
-class _QuickCaptureSheet extends StatelessWidget {
-  final int count;
-  const _QuickCaptureSheet({required this.count});
+class _SignaturePadSheet extends StatefulWidget {
+  final SignatureController controller;
+  const _SignaturePadSheet({required this.controller});
 
+  @override
+  State<_SignaturePadSheet> createState() => _SignaturePadSheetState();
+}
+
+class _SignaturePadSheetState extends State<_SignaturePadSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
       decoration: const BoxDecoration(
         color: Color(0xFF1E1E2E),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -645,41 +845,64 @@ class _QuickCaptureSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Drag handle
           Container(
             width: 40,
             height: 4,
-            margin: const EdgeInsets.only(bottom: 20),
+            margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
               color: Colors.white24,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          Container(
-            width: 56,
-            height: 56,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)],
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)]),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.draw, color: Colors.white, size: 18),
               ),
-              shape: BoxShape.circle,
+              const SizedBox(width: 12),
+              const Text(
+                'Draw Signature',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => widget.controller.clear(),
+                child: const Text('Clear',
+                    style: TextStyle(color: Colors.white54, fontSize: 13)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 220,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white24),
             ),
-            child: const Icon(Icons.camera_alt, color: Colors.white, size: 28),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Signature(
+                controller: widget.controller,
+                backgroundColor: Colors.white,
+              ),
+            ),
           ),
-          const SizedBox(height: 14),
-          Text(
-            '$count photo${count == 1 ? '' : 's'} captured',
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           const Text(
-            'Take another photo?',
-            style: TextStyle(color: Colors.white60, fontSize: 13),
+            'Sign in the box above',
+            style: TextStyle(color: Colors.white38, fontSize: 12),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
@@ -692,13 +915,24 @@ class _QuickCaptureSheet extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Done'),
+                  child: const Text('Cancel'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
+                  onPressed: () async {
+                    if (widget.controller.isEmpty) {
+                      Get.snackbar(
+                        'Empty Signature',
+                        'Please draw your signature first.',
+                        snackPosition: SnackPosition.BOTTOM,
+                        duration: const Duration(seconds: 2),
+                      );
+                      return;
+                    }
+                    Navigator.pop(context, true);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF6C63FF),
                     foregroundColor: Colors.white,
@@ -706,14 +940,7 @@ class _QuickCaptureSheet extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.camera_alt, size: 16),
-                      SizedBox(width: 6),
-                      Text('Next Shot'),
-                    ],
-                  ),
+                  child: const Text('Save Signature'),
                 ),
               ),
             ],

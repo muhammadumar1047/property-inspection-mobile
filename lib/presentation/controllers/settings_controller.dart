@@ -1,5 +1,7 @@
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import '../../data/services/storage_service.dart';
+import 'auth_controller.dart';
 
 class SettingsController extends GetxController {
   final _storage = GetStorage();
@@ -17,7 +19,7 @@ class SettingsController extends GetxController {
   String get fullName {
     final f = firstName.value.trim();
     final l = lastName.value.trim();
-    if (f.isEmpty && l.isEmpty) return 'Inspector';
+    if (f.isEmpty && l.isEmpty) return 'User';
     return '$f $l'.trim();
   }
 
@@ -28,11 +30,20 @@ class SettingsController extends GetxController {
     loadProfile();
   }
 
-  void loadProfile() {
-    firstName.value = _storage.read('firstName') ?? '';
-    lastName.value = _storage.read('lastName') ?? '';
-    email.value = _storage.read('email') ?? '';
-    profileImage.value = _storage.read('profileImage');
+  void loadProfile() async {
+    final auth = Get.find<AuthController>();
+    final user = auth.currentUser.value ?? await StorageService.getUser();
+    if (user != null) {
+      firstName.value = _storage.read('firstName') ?? user.firstName;
+      lastName.value = _storage.read('lastName') ?? user.lastName;
+      email.value = user.email;
+      profileImage.value = _storage.read('profileImage') ?? user.profileImage;
+    } else {
+      firstName.value = _storage.read('firstName') ?? '';
+      lastName.value = _storage.read('lastName') ?? '';
+      email.value = _storage.read('email') ?? '';
+      profileImage.value = _storage.read('profileImage');
+    }
   }
   
   void loadSettings() {

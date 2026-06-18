@@ -46,15 +46,7 @@ class _InspectionListScreenState extends State<InspectionListScreen> {
           onPressed: () => Get.back(),
           icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary),
         ),
-        actions: [
-          IconButton(
-            onPressed: () => Get.toNamed('/notifications'),
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
+        actions: const [],
       ),
       body: Obx(() {
         final isMap = controller.isMapView.value;

@@ -9,6 +9,8 @@ class LoginScreen extends GetView<AuthController> {
 
   @override
   Widget build(BuildContext context) {
+    controller.email.value = '';
+    controller.password.value = '';
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -101,6 +103,7 @@ class LoginScreen extends GetView<AuthController> {
           _buildTextField(
             label: 'Email / Username',
             icon: Icons.person_outline,
+            initialValue: '',
             onChanged: (value) => controller.email.value = value,
           ),
           const SizedBox(height: 16),
@@ -109,6 +112,7 @@ class LoginScreen extends GetView<AuthController> {
               label: 'Password',
               icon: Icons.lock_outline,
               isPassword: true,
+              initialValue: '',
               obscureText: controller.obscurePassword.value,
               onChanged: (value) => controller.password.value = value,
               suffixIcon: IconButton(
@@ -157,6 +161,7 @@ class LoginScreen extends GetView<AuthController> {
     required String label,
     required IconData icon,
     required Function(String) onChanged,
+    String initialValue = '',
     bool isPassword = false,
     bool obscureText = false,
     Widget? suffixIcon,
@@ -168,6 +173,7 @@ class LoginScreen extends GetView<AuthController> {
         border: Border.all(color: AppColors.border),
       ),
       child: TextField(
+        controller: TextEditingController(text: initialValue),
         obscureText: obscureText,
         onChanged: onChanged,
         style: const TextStyle(color: AppColors.textPrimary),

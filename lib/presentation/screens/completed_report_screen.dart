@@ -69,16 +69,6 @@ class CompletedReportScreen extends GetView<CompletedReportController> {
                     _buildInspectorCard(),
                     const SizedBox(height: 16),
                     _buildPropertyDetailsCard(),
-                    if (controller.landlordSnapshots.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      _buildPeopleCard('Landlords', Icons.home_work_outlined,
-                          controller.landlordSnapshots),
-                    ],
-                    if (controller.tenancySnapshots.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      _buildPeopleCard('Tenants', Icons.people_outline,
-                          controller.tenancySnapshots),
-                    ],
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -402,70 +392,6 @@ class CompletedReportScreen extends GetView<CompletedReportController> {
               style: TextStyle(
                   color: color, fontSize: 14, fontWeight: FontWeight.w700,
                   letterSpacing: 1.5)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPeopleCard(String title, IconData icon, List people) {
-    return _card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionTitle(title, icon),
-          const SizedBox(height: 14),
-          ...people.map((p) {
-            final person = p as Map<String, dynamic>;
-            final name = '${person['firstName'] ?? ''} ${person['lastName'] ?? ''}'.trim();
-            final email = person['email']?.toString() ?? '';
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Center(
-                      child: Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : '?',
-                        style: const TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(name.isNotEmpty ? name : 'Unknown',
-                            style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600)),
-                        if (email.isNotEmpty)
-                          Text(email,
-                              style: const TextStyle(
-                                  color: AppColors.textSecondary, fontSize: 12),
-                              overflow: TextOverflow.ellipsis),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
         ],
       ),
     );

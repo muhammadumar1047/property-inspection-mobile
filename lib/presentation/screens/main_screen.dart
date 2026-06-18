@@ -73,7 +73,6 @@ var width,height;
                 _navItem(Icons.home_rounded, Icons.home_outlined, 'Home', 0, current),
                 _navItem(Icons.list_alt_rounded, Icons.list_alt_outlined, 'Inspect', 1, current),
                 _navItem(Icons.calendar_month_rounded, Icons.calendar_month_outlined, 'Calendar', 2, current),
-                _navItem(Icons.notifications_rounded, Icons.notifications_outlined, 'Alerts', 0, current),
                 _navItem(Icons.person_rounded, Icons.person_outline_rounded, 'Profile', 4, current),
               ],
             ),
@@ -195,15 +194,7 @@ class DashboardContent extends GetView<DashboardController> {
                   color: AppColors.surface, shape: BoxShape.circle,
                   border: Border.all(color: AppColors.border),
                 ),
-                child: const Icon(Icons.notifications_outlined, color: AppColors.textSecondary, size: 20),
-              ),
-              Positioned(
-                right: 0, top: 0,
-                child: Container(
-                  width: 18, height: 18,
-                  decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
-                  child: const Center(child: Text('0', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
-                ),
+                child: const Icon(Icons.calendar_month_outlined, color: AppColors.textSecondary, size: 20),
               ),
             ],
           ),
@@ -682,12 +673,7 @@ class _InspectionListContentState extends State<InspectionListContent>
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: () => Get.find<MainController>().changeIndex(2),
-            icon: const Icon(Icons.notifications_outlined, color: AppColors.textSecondary),
-          ),
-        ],
+        actions: const [],
       ),
       body: Column(
         children: [
@@ -841,6 +827,21 @@ class _InspectionListContentState extends State<InspectionListContent>
       onRefresh: _controller.loadInspections,
       color: AppColors.primary,
       child: Obx(() {
+        if (_controller.isLoading.value) {
+          return const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: AppColors.primary),
+                SizedBox(height: 12),
+                Text(
+                  'Syncing inspections...',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+              ],
+            ),
+          );
+        }
         var inspections = _controller.filteredInspections;
         if (completedFilter != null) {
           inspections = completedFilter

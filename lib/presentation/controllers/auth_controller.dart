@@ -106,6 +106,8 @@ class AuthController extends GetxController {
     await StorageService.clearSession();
     token.value = '';
     currentUser.value = null;
+    email.value = '';
+    password.value = '';
     Get.offAllNamed('/login');
   }
 

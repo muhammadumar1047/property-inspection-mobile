@@ -86,20 +86,7 @@ class DashboardScreen extends GetView<DashboardController> {
                     ),
                   )
                 : const SizedBox.shrink()),
-            GestureDetector(
-              onTap: () => Get.toNamed('/notifications'),
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Icon(Icons.notifications_outlined,
-                    color: AppColors.textSecondary, size: 20),
-              ),
-            ),
+
           ],
         ),
       ],

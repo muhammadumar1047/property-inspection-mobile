@@ -22,6 +22,7 @@ import '../presentation/screens/terms_screen.dart';
 import '../presentation/screens/support_screen.dart';
 import '../presentation/screens/main_screen.dart';
 import '../presentation/screens/edit_profile_screen.dart';
+import '../presentation/screens/change_password_screen.dart';
 import '../presentation/controllers/edit_profile_controller.dart';
 import '../presentation/screens/completed_report_screen.dart';
 import '../presentation/controllers/completed_report_controller.dart';
@@ -123,6 +124,11 @@ class AppRoutes {
     GetPage(
       name: '/edit-profile',
       page: () => const EditProfileScreen(),
+      binding: BindingsBuilder(() => Get.lazyPut(() => EditProfileController(), fenix: true)),
+    ),
+    GetPage(
+      name: '/change-password',
+      page: () => const ChangePasswordScreen(),
       binding: BindingsBuilder(() => Get.lazyPut(() => EditProfileController(), fenix: true)),
     ),
     GetPage(

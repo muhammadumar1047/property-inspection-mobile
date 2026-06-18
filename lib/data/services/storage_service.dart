@@ -8,12 +8,15 @@ class StorageService {
   static const _userKey = 'auth_user';
   static const _inspectionsKey = 'cached_inspections';
   static const _pendingReportsKey = 'pending_reports';
+  static const _templatePrefix = 'template_';
+  static const _draftPrefix = 'draft_';
+
+  // ─── Session ──────────────────────────────────────────────────────────────
 
   static Future<void> saveSession(String token, UserModel user) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
     await prefs.setString(_userKey, jsonEncode(user.toJson()));
-    print('saveSession: token saved = $token');
   }
 
   static Future<String?> getToken() async {
@@ -24,7 +27,6 @@ class StorageService {
   static Future<UserModel?> getUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userJson = prefs.getString(_userKey);
-    print("my user data is: ${userJson}::${_userKey}");
     if (userJson == null) return null;
     return UserModel.fromJson(jsonDecode(userJson));
   }
@@ -34,6 +36,8 @@ class StorageService {
     await prefs.remove(_tokenKey);
     await prefs.remove(_userKey);
   }
+
+  // ─── Inspections ──────────────────────────────────────────────────────────
 
   static Future<void> saveInspections(List<InspectionModel> inspections) async {
     final prefs = await SharedPreferences.getInstance();
@@ -49,10 +53,47 @@ class StorageService {
     return list.map((e) => InspectionModel.fromJson(e)).toList();
   }
 
+  // ─── Template cache (for offline use) ────────────────────────────────────
+
+  static Future<void> saveTemplate(String inspectionId, Map<String, dynamic> templateJson) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_templatePrefix$inspectionId', jsonEncode(templateJson));
+  }
+
+  static Future<Map<String, dynamic>?> getCachedTemplate(String inspectionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('$_templatePrefix$inspectionId');
+    if (raw == null) return null;
+    return jsonDecode(raw) as Map<String, dynamic>;
+  }
+
+  // ─── Draft (in-progress form data) ───────────────────────────────────────
+
+  static Future<void> saveDraft(String inspectionId, Map<String, dynamic> draft) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_draftPrefix$inspectionId', jsonEncode(draft));
+  }
+
+  static Future<Map<String, dynamic>?> getDraft(String inspectionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('$_draftPrefix$inspectionId');
+    if (raw == null) return null;
+    return jsonDecode(raw) as Map<String, dynamic>;
+  }
+
+  static Future<void> clearDraft(String inspectionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_draftPrefix$inspectionId');
+  }
+
+  // ─── Pending reports ──────────────────────────────────────────────────────
+
   static Future<void> savePendingReport(Map<String, dynamic> report) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_pendingReportsKey);
-    final list = raw != null ? (jsonDecode(raw) as List).cast<Map<String, dynamic>>() : <Map<String, dynamic>>[];
+    final list = raw != null
+        ? (jsonDecode(raw) as List).cast<Map<String, dynamic>>()
+        : <Map<String, dynamic>>[];
     list.add(report);
     await prefs.setString(_pendingReportsKey, jsonEncode(list));
   }

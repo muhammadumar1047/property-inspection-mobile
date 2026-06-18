@@ -35,10 +35,6 @@ class EditProfileScreen extends GetView<EditProfileController> {
             const SizedBox(height: 24),
             _buildSaveButton(),
             const SizedBox(height: 32),
-            _buildPasswordSection(),
-            const SizedBox(height: 24),
-            _buildUpdatePasswordButton(),
-            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -99,40 +95,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
           ],
         ),
         const SizedBox(height: 16),
-        _buildField('Email', controller.emailController, Icons.email_outlined, keyboardType: TextInputType.emailAddress),
-      ],
-    );
-  }
-
-  Widget _buildPasswordSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Change Password',
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        Obx(() => _buildPasswordField(
-          'Current Password',
-          controller.currentPasswordController,
-          controller.obscureCurrent.value,
-          () => controller.obscureCurrent.toggle(),
-        )),
-        const SizedBox(height: 16),
-        Obx(() => _buildPasswordField(
-          'New Password',
-          controller.newPasswordController,
-          controller.obscureNew.value,
-          () => controller.obscureNew.toggle(),
-        )),
-        const SizedBox(height: 16),
-        Obx(() => _buildPasswordField(
-          'Confirm New Password',
-          controller.confirmPasswordController,
-          controller.obscureConfirm.value,
-          () => controller.obscureConfirm.toggle(),
-        )),
+        _buildField('Email', controller.emailController, Icons.email_outlined, readOnly: true),
       ],
     );
   }
@@ -142,6 +105,7 @@ class EditProfileScreen extends GetView<EditProfileController> {
     TextEditingController textController,
     IconData icon, {
     TextInputType keyboardType = TextInputType.text,
+    bool readOnly = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -151,11 +115,18 @@ class EditProfileScreen extends GetView<EditProfileController> {
         TextFormField(
           controller: textController,
           keyboardType: keyboardType,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+          readOnly: readOnly,
+          style: TextStyle(
+            color: readOnly ? AppColors.textSecondary : AppColors.textPrimary,
+            fontSize: 14,
+          ),
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 18),
+            suffixIcon: readOnly
+                ? const Icon(Icons.lock_outline, color: AppColors.textHint, size: 16)
+                : null,
             filled: true,
-            fillColor: AppColors.surface,
+            fillColor: readOnly ? AppColors.background : AppColors.surface,
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -163,57 +134,15 @@ class EditProfileScreen extends GetView<EditProfileController> {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primary),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPasswordField(
-    String label,
-    TextEditingController textController,
-    bool obscure,
-    VoidCallback toggle,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-        const SizedBox(height: 6),
-        TextFormField(
-          controller: textController,
-          obscureText: obscure,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-          decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.lock_outline, color: AppColors.textSecondary, size: 18),
-            suffixIcon: IconButton(
-              onPressed: toggle,
-              icon: Icon(
-                obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: AppColors.textSecondary,
-                size: 18,
+              borderSide: BorderSide(
+                color: readOnly ? AppColors.border.withAlpha(120) : AppColors.border,
               ),
             ),
-            filled: true,
-            fillColor: AppColors.surface,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderSide: BorderSide(
+                color: readOnly ? AppColors.border.withAlpha(120) : AppColors.primary,
+              ),
             ),
           ),
         ),
@@ -234,23 +163,6 @@ class EditProfileScreen extends GetView<EditProfileController> {
         child: controller.isLoading.value
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
             : const Text('Save Profile', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-      ),
-    ));
-  }
-
-  Widget _buildUpdatePasswordButton() {
-    return Obx(() => SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: OutlinedButton(
-        onPressed: controller.isLoading.value ? null : controller.updatePassword,
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.primary),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        child: controller.isLoading.value
-            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2))
-            : const Text('Update Password', style: TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.w600)),
       ),
     ));
   }

@@ -81,16 +81,22 @@ class ApiService {
 
   /// Gets a pre-signed S3 upload URL, PUTs the file bytes to S3,
   /// and returns the final public fileUrl to store in the report.
-  Future<String> uploadPhoto({
+  /// [isVideo] determines the mediaType and content-type sent to the API.
+  Future<String> uploadMedia({
     required String agencyId,
     required String propertyId,
     required String inspectionId,
     required String filePath,
+    bool isVideo = false,
   }) async {
     final ext = filePath.split('.').last.toLowerCase();
-    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+    String contentType;
+    if (isVideo) {
+      contentType = ext == 'mov' ? 'video/quicktime' : 'video/mp4';
+    } else {
+      contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+    }
 
-    // Step 1: get pre-signed uploadUrl + permanent fileUrl
     final options = await _authOptions();
     final response = await _dio.get(
       '/api/S3/generate-upload-url',
@@ -98,13 +104,12 @@ class ApiService {
         'agencyId': agencyId,
         'propertyId': propertyId,
         'inspectionId': inspectionId,
-        'mediaType': 'photo',
+        'mediaType': isVideo ? 'video' : 'photo',
         'contentType': contentType,
       },
       options: options,
     );
 
-    // Response shape: { success, data: { uploadUrl, fileUrl, fileKey, photoId } }
     final body = response.data is Map ? response.data as Map : {};
     final dataMap = (body['data'] is Map ? body['data'] : body) as Map;
     final uploadUrl = (dataMap['uploadUrl'] ?? dataMap['upload_url'] ?? '').toString();
@@ -112,20 +117,34 @@ class ApiService {
 
     if (uploadUrl.isEmpty) throw Exception('No uploadUrl in response: $body');
 
-    // Step 2: PUT raw bytes to S3 — only Content-Type header, NO Content-Length
     final bytes = await File(filePath).readAsBytes();
     await _s3Dio.put(
       uploadUrl,
       data: bytes,
       options: Options(
         headers: {'Content-Type': contentType},
-        // Disable Dio's default content-type override
         contentType: contentType,
+        sendTimeout: const Duration(minutes: 5),
+        receiveTimeout: const Duration(minutes: 5),
       ),
     );
 
     return fileUrl.isNotEmpty ? fileUrl : uploadUrl.split('?').first;
   }
+
+  // Keep old name as a convenience wrapper so nothing else breaks.
+  Future<String> uploadPhoto({
+    required String agencyId,
+    required String propertyId,
+    required String inspectionId,
+    required String filePath,
+  }) =>
+      uploadMedia(
+        agencyId: agencyId,
+        propertyId: propertyId,
+        inspectionId: inspectionId,
+        filePath: filePath,
+      );
 
   Future<Response> syncReport(Map<String, dynamic> body) async {
     final options = await _authOptions();

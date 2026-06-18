@@ -36,7 +36,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
       _commentInputVisible[ik] = !wasVisible;
       if (!wasVisible) {
         _commentCtrl(ik).text = prefill;
-        _ctrl.filterSuggestions(prefill);
+        _ctrl.filteredSuggestions.clear();
       } else {
         _ctrl.filteredSuggestions.clear();
       }
@@ -44,6 +44,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
   }
 
   void _submitInlineComment(String ik, int aIdx, int iIdx) {
+    FocusScope.of(context).unfocus();
     final text = _commentCtrl(ik).text.trim();
     if (text.isNotEmpty) _ctrl.addComment(aIdx, iIdx, text);
     _commentCtrl(ik).clear();
@@ -307,6 +308,10 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
                       _buildCommentsSection(aIdx, iIdx, c),
                       const SizedBox(height: 16),
                       _buildPhotosSection(aIdx, iIdx, c),
+                      if (c.isRoutineInspection) ...[
+                        const SizedBox(height: 16),
+                        _buildVideosSection(aIdx, iIdx, c),
+                      ],
                     ],
                   ),
                 ),
@@ -337,23 +342,26 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
       case 'boolean':
         return GetBuilder<InspectionFormController>(
           id: 'form',
-          builder: (c) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(cond.description,
-                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                ),
-                Switch(
-                  value: c.getBool(aIdx, iIdx, cIdx),
-                  onChanged: (val) => c.setBool(aIdx, iIdx, cIdx, val),
-                  activeColor: AppColors.primary,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ],
-            ),
-          ),
+          builder: (c) {
+            final val = c.getBoolNullable(aIdx, iIdx, cIdx);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(cond.description,
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.textSecondary)),
+                  ),
+                  const SizedBox(width: 8),
+                  _YNToggle(
+                    value: val,
+                    onChanged: (v) => c.setBoolNullable(aIdx, iIdx, cIdx, v),
+                  ),
+                ],
+              ),
+            );
+          },
         );
 
       case 'text':
@@ -681,16 +689,9 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
               children: [
                 // WhatsApp-style hold-to-record mic
                 _VoiceMicButton(
-                  onRecorded: (words) {
-                    setState(() {
-                      final current = _commentCtrl(ik).text;
-                      _commentCtrl(ik).text =
-                          current.isEmpty ? words : '$current $words';
-                      _commentCtrl(ik).selection = TextSelection.fromPosition(
-                          TextPosition(offset: _commentCtrl(ik).text.length));
-                    });
-                  },
+                  textController: _commentCtrl(ik),
                   ctrl: _ctrl,
+                  onStateChange: () => setState(() {}),
                 ),
                 const Spacer(),
                 ElevatedButton(
@@ -764,6 +765,13 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
                   onPressed: () => c.pickPhoto(aIdx, iIdx, ImageSource.gallery),
                   icon: const Icon(Icons.photo_library, size: 18),
                   tooltip: 'Pick multiple from gallery',
+                  style: IconButton.styleFrom(
+                      foregroundColor: AppColors.primary, padding: EdgeInsets.zero),
+                ),
+                IconButton(
+                  onPressed: () => c.captureSignature(aIdx, iIdx),
+                  icon: const Icon(Icons.draw, size: 18),
+                  tooltip: 'Draw signature',
                   style: IconButton.styleFrom(
                       foregroundColor: AppColors.primary, padding: EdgeInsets.zero),
                 ),
@@ -887,6 +895,100 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
     );
   }
 
+  Widget _buildVideosSection(int aIdx, int iIdx, InspectionFormController c) {
+    final videos = c.getVideos(aIdx, iIdx);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Videos',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary)),
+            IconButton(
+              onPressed: () => c.recordVideo(aIdx, iIdx),
+              icon: const Icon(Icons.videocam, size: 20),
+              tooltip: 'Record video',
+              style: IconButton.styleFrom(
+                  foregroundColor: AppColors.primary, padding: EdgeInsets.zero),
+            ),
+          ],
+        ),
+        if (videos.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Column(
+            children: videos.asMap().entries.map((e) {
+              final name = e.value.split('/').last;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                            colors: [Color(0xFF6C63FF), Color(0xFF48CAE4)]),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.videocam,
+                          color: Colors.white, size: 16),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Video ${e.key + 1}',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    Text(
+                      name.length > 20
+                          ? '...${name.substring(name.length - 16)}'
+                          : name,
+                      style: const TextStyle(
+                          fontSize: 10, color: AppColors.textHint),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => c.removeVideo(aIdx, iIdx, e.key),
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                            color: Colors.red, shape: BoxShape.circle),
+                        child: const Icon(Icons.close,
+                            size: 12, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ] else
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Tap the camera icon to record a video',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textHint.withAlpha(180)),
+            ),
+          ),
+      ],
+    );
+  }
+
   void _showLabelEditor(int aIdx, int iIdx, int photoIdx, InspectionFormController c) {
     final current = c.getPhotoLabel(aIdx, iIdx, photoIdx);
     showModalBottomSheet(
@@ -978,6 +1080,61 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Y / N toggle ────────────────────────────────────────────────────────────
+
+class _YNToggle extends StatelessWidget {
+  final bool? value; // true=Y, false=N, null=blank
+  final void Function(bool?) onChanged;
+
+  const _YNToggle({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _btn('Y', true),
+        const SizedBox(width: 6),
+        _btn('N', false),
+      ],
+    );
+  }
+
+  Widget _btn(String label, bool btnVal) {
+    final isSelected = value == btnVal;
+    final color = btnVal ? AppColors.primary : AppColors.error;
+    return GestureDetector(
+      onTap: () {
+        // Tap selected again → deselect (blank)
+        onChanged(isSelected ? null : btnVal);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 36,
+        height: 30,
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected ? color : AppColors.border,
+            width: 1.5,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: isSelected ? Colors.white : AppColors.textSecondary,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1109,40 +1266,44 @@ class _LabelEditorSheetState extends State<_LabelEditorSheet> {
   }
 }
 
-// ─── WhatsApp-style press-and-hold mic button ─────────────────────────────
+// ─── Tap-to-start / tap-to-stop mic button ────────────────────────────────
 
 class _VoiceMicButton extends StatefulWidget {
-  final void Function(String words) onRecorded;
+  final TextEditingController textController;
   final InspectionFormController ctrl;
+  final VoidCallback onStateChange;
 
-  const _VoiceMicButton({required this.onRecorded, required this.ctrl});
+  const _VoiceMicButton({
+    required this.textController,
+    required this.ctrl,
+    required this.onStateChange,
+  });
 
   @override
   State<_VoiceMicButton> createState() => _VoiceMicButtonState();
 }
 
 class _VoiceMicButtonState extends State<_VoiceMicButton> {
-  bool _recording = false;
-  bool _cancelled = false;
-  int _seconds = 0;
   Timer? _timer;
   Timer? _waveTimer;
+  int _seconds = 0;
   final List<double> _bars = List.filled(5, 0.3);
-  double _dragX = 0;
 
-  static const double _cancelThreshold = -60;
+  bool get _recording => widget.ctrl.isListening.value;
 
-  void _start(Offset localPos) {
-    if (_recording) return;
-    _cancelled = false;
-    _dragX = 0;
+  void _toggle() {
+    if (_recording) {
+      _stopRecording();
+    } else {
+      _startRecording();
+    }
+  }
+
+  void _startRecording() {
     _seconds = 0;
-    setState(() => _recording = true);
-
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _seconds++);
     });
-
     _waveTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
       if (!mounted) return;
       final rng = Random();
@@ -1153,42 +1314,26 @@ class _VoiceMicButtonState extends State<_VoiceMicButton> {
       });
     });
 
-    widget.ctrl.startListening((words) {
-      if (!_cancelled && words.isNotEmpty) widget.onRecorded(words);
-      _stop();
+    final baseText = widget.textController.text;
+    widget.ctrl.startListening((partial) {
+      if (!mounted) return;
+      // Replace any previous partial with the latest recognised words
+      final prefix = baseText.isEmpty ? '' : '$baseText ';
+      widget.textController.text = '$prefix$partial';
+      widget.textController.selection = TextSelection.fromPosition(
+          TextPosition(offset: widget.textController.text.length));
+      widget.onStateChange();
     });
+    setState(() {});
   }
 
-  void _stop() {
+  void _stopRecording() {
     _timer?.cancel();
     _waveTimer?.cancel();
     _timer = null;
     _waveTimer = null;
-    if (mounted) setState(() => _recording = false);
-  }
-
-  void _onDragUpdate(DragUpdateDetails d) {
-    _dragX += d.delta.dx;
-    if (_dragX < _cancelThreshold) {
-      _cancelled = true;
-      widget.ctrl.stopListening();
-      _stop();
-    } else {
-      setState(() {});
-    }
-  }
-
-  void _onEnd() {
-    if (_recording) {
-      widget.ctrl.stopListening();
-      _stop();
-    }
-  }
-
-  String get _timeLabel {
-    final m = _seconds ~/ 60;
-    final s = _seconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    widget.ctrl.stopListeningAndFlush();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -1198,86 +1343,76 @@ class _VoiceMicButtonState extends State<_VoiceMicButton> {
     super.dispose();
   }
 
+  String get _timeLabel {
+    final m = _seconds ~/ 60;
+    final s = _seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (!_recording) {
-      return GestureDetector(
-        onTapDown: (d) => _start(d.localPosition),
-        child: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withAlpha(20),
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.primary.withAlpha(80)),
+    return Obx(() {
+      final recording = widget.ctrl.isListening.value;
+      if (!recording) {
+        return GestureDetector(
+          onTap: _toggle,
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withAlpha(20),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primary.withAlpha(80)),
+            ),
+            child: const Icon(Icons.mic, color: AppColors.primary, size: 18),
           ),
-          child: const Icon(Icons.mic, color: AppColors.primary, size: 18),
-        ),
-      );
-    }
-
-    // Recording overlay — slide-to-cancel bar
-    return GestureDetector(
-      onHorizontalDragUpdate: _onDragUpdate,
-      onHorizontalDragEnd: (_) => _onEnd(),
-      onTapUp: (_) => _onEnd(),
-      child: Container(
-        height: 38,
-        constraints: const BoxConstraints(minWidth: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withAlpha(15),
-          borderRadius: BorderRadius.circular(19),
-          border: Border.all(color: AppColors.primary.withAlpha(60)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Animated mic icon
-            const Icon(Icons.mic, color: Colors.red, size: 16),
-            const SizedBox(width: 6),
-            // Waveform bars
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: List.generate(_bars.length, (i) {
-                return AnimatedContainer(
+        );
+      }
+      return GestureDetector(
+        onTap: _toggle,
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: Colors.red.withAlpha(20),
+            borderRadius: BorderRadius.circular(19),
+            border: Border.all(color: Colors.red.withAlpha(100)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.stop_circle_outlined, color: Colors.red, size: 16),
+              const SizedBox(width: 6),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: List.generate(_bars.length, (i) => AnimatedContainer(
                   duration: const Duration(milliseconds: 100),
                   width: 3,
                   height: 6 + _bars[i] * 18,
                   margin: const EdgeInsets.symmetric(horizontal: 1.5),
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: Colors.red,
                     borderRadius: BorderRadius.circular(2),
                   ),
-                );
-              }),
-            ),
-            const SizedBox(width: 8),
-            // Timer
-            Text(
-              _timeLabel,
-              style: const TextStyle(
+                )),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _timeLabel,
+                style: const TextStyle(
                   fontSize: 11,
                   color: AppColors.textSecondary,
-                  fontFeatures: [FontFeature.tabularFigures()]),
-            ),
-            const SizedBox(width: 8),
-            // Slide to cancel hint — shifts with drag
-            Transform.translate(
-              offset: Offset(_dragX.clamp(_cancelThreshold, 0), 0),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.chevron_left, size: 14, color: AppColors.textHint),
-                  Text('Cancel',
-                      style: TextStyle(fontSize: 10, color: AppColors.textHint)),
-                ],
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 6),
+              const Text('Tap to stop',
+                  style: TextStyle(fontSize: 10, color: Colors.red)),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }

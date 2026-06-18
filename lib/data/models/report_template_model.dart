@@ -9,6 +9,8 @@ class ReportTemplateResponse {
         success: json['success'] ?? false,
         data: ReportTemplate.fromJson(json['data']),
       );
+
+  Map<String, dynamic> toJson() => {'success': success, 'data': data.toJson()};
 }
 
 class ReportTemplate {
@@ -32,6 +34,13 @@ class ReportTemplate {
             .map((e) => ReportArea.fromJson(e))
             .toList(),
       );
+
+  Map<String, dynamic> toJson() => {
+        'inspectionId': inspectionId,
+        'reportType': reportType,
+        'notes': notes,
+        'reportAreas': reportAreas.map((e) => e.toJson()).toList(),
+      };
 }
 
 class ReportArea {
@@ -46,6 +55,11 @@ class ReportArea {
             .map((e) => ReportItem.fromJson(e))
             .toList(),
       );
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'reportItems': reportItems.map((e) => e.toJson()).toList(),
+      };
 }
 
 class ReportItem {
@@ -73,11 +87,18 @@ class ReportItem {
             .map((e) => ReportMedia.fromJson(e))
             .toList(),
       );
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'reportItemConditions': reportItemConditions.map((e) => e.toJson()).toList(),
+        'reportItemComments': reportItemComments.map((e) => e.toJson()).toList(),
+        'reportMedia': reportMedia.map((e) => e.toJson()).toList(),
+      };
 }
 
 class ReportItemCondition {
   final String description;
-  final String type; // boolean, text, number, date
+  final String type;
   dynamic value;
 
   ReportItemCondition({
@@ -92,6 +113,12 @@ class ReportItemCondition {
         type: json['type'] ?? 'boolean',
         value: json['value'],
       );
+
+  Map<String, dynamic> toJson() => {
+        'description': description,
+        'type': type,
+        'value': value,
+      };
 }
 
 class ReportItemComment {
@@ -99,12 +126,14 @@ class ReportItemComment {
   ReportItemComment({required this.text});
   factory ReportItemComment.fromJson(Map<String, dynamic> json) =>
       ReportItemComment(text: json['text'] ?? '');
+  Map<String, dynamic> toJson() => {'text': text};
 }
 
 class ReportMedia {
   String url;
-  final String type; // photo, video
+  final String type;
   ReportMedia({required this.url, required this.type});
   factory ReportMedia.fromJson(Map<String, dynamic> json) =>
       ReportMedia(url: json['url'] ?? '', type: json['type'] ?? 'photo');
+  Map<String, dynamic> toJson() => {'url': url, 'type': type};
 }
