@@ -425,7 +425,7 @@ class _InspectionListScreenState extends State<InspectionListScreen> {
           color: AppColors.background,
           height: 200,
           child: Obx(() {
-            final items = controller.inspections;
+            final items = controller.filteredInspections;
             if (items.isEmpty) {
               return const Center(
                 child: Text(

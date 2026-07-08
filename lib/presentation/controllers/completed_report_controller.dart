@@ -52,9 +52,9 @@ class CompletedReportController extends GetxController {
   String get inspectionTime => data.value?['inspectionTime']?.toString() ?? '';
   String get typeLabel {
     switch (data.value?['inspectionType']) {
-      case 1: return 'Routine';
-      case 2: return 'Entry';
-      case 3: return 'Exit';
+      case 1: return 'Entry';
+      case 2: return 'Exit';
+      case 3: return 'Routine';
       default: return 'Inspection';
     }
   }

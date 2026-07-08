@@ -13,6 +13,7 @@ import '../../data/models/report_template_model.dart';
 import '../../data/services/api_service.dart';
 import '../../data/services/connectivity_service.dart';
 import '../../data/services/storage_service.dart';
+import '../screens/quick_capture_screen.dart';
 
 class InspectionFormController extends GetxController {
   final _api = ApiService();
@@ -33,7 +34,8 @@ class InspectionFormController extends GetxController {
   // key: 'areaIdx-itemIdx' → List<String>
   final Map<String, List<String>> commentValues = {};
   final suggestions = <String>[].obs;
-  final filteredSuggestions = <String>[].obs;
+  // key: 'aIdx-iIdx' → filtered suggestions for that item's comment input
+  final filteredSuggestions = <String, RxList<String>>{};
 
   Future<void> fetchSuggestions() async {
     final item = inspection.value;
@@ -63,14 +65,24 @@ class InspectionFormController extends GetxController {
     }
   }
 
-  void filterSuggestions(String query) {
+  void filterSuggestions(String ik, String query) {
+    filteredSuggestions[ik] ??= <String>[].obs;
     if (query.trim().isEmpty) {
-      filteredSuggestions.clear();
+      filteredSuggestions[ik]!.clear();
       return;
     }
-    filteredSuggestions.assignAll(
+    filteredSuggestions[ik]!.assignAll(
       suggestions.where((s) => s.toLowerCase().contains(query.toLowerCase())).take(5),
     );
+  }
+
+  RxList<String> getSuggestions(String ik) {
+    filteredSuggestions[ik] ??= <String>[].obs;
+    return filteredSuggestions[ik]!;
+  }
+
+  void clearSuggestions(String ik) {
+    filteredSuggestions[ik]?.clear();
   }
   // key: 'areaIdx-itemIdx' → List<String> (local paths or uploaded URLs)
   final Map<String, List<String>> photoValues = {};
@@ -305,20 +317,15 @@ class InspectionFormController extends GetxController {
     }
   }
 
-  /// Quick capture: opens the camera repeatedly, adding each photo immediately.
-  /// The loop ends when the user cancels/closes the camera.
+  /// Quick capture: opens a live camera screen, user taps to capture multiple
+  /// photos one after another. All captured photos are added instantly on Done.
   Future<void> quickCapture(int a, int i) async {
+    final result = await Get.to<List<String>>(() => const QuickCaptureScreen());
+    if (result == null || result.isEmpty) return;
     photoValues[_ik(a, i)] ??= [];
-    while (true) {
-      final file = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 80,
-      );
-      if (file == null) break;
-      photoValues[_ik(a, i)]!.add(file.path);
-      update(['form']);
-      _saveDraft();
-    }
+    photoValues[_ik(a, i)]!.addAll(result);
+    update(['form']);
+    _saveDraft();
   }
 
   bool _speechInitialized = false;
@@ -624,7 +631,14 @@ class InspectionFormController extends GetxController {
           final ck = _ck(aIdx, iIdx, cIdx);
           dynamic value = conditionValues[ck];
           if (cond.type == 'boolean') {
-            value = value == true;
+            // Keep null as null — only coerce actual true/false
+            if (value == true || value == 'true') {
+              value = true;
+            } else if (value == false || value == 'false') {
+              value = false;
+            } else {
+              value = null;
+            }
           } else if (cond.type == 'number') {
             value = value != null && value.toString().isNotEmpty
                 ? num.tryParse(value.toString())
@@ -667,8 +681,9 @@ class InspectionFormController extends GetxController {
     }).toList();
 
     return {
-      'AgencyId': item.agencyId,
+      'agencyId': item.agencyId,
       'inspectionId': item.id,
+      'inspectionType': item.inspectionType,
       'reportType': item.typeLabel,
       'notes': '',
       'createdAt': DateTime.now().toUtc().toIso8601String(),
@@ -759,7 +774,9 @@ class InspectionFormController extends GetxController {
       final uploadedUrls = await _uploadPhotos();
       final payload = _buildPayload(uploadedPhotoUrls: uploadedUrls);
 
-      final response = await _api.syncReport(payload);
+      final response = isRoutineInspection
+          ? await _api.syncRoutineReport(payload)
+          : await _api.syncReport(payload);
       if (response.data['success'] == true || response.statusCode == 200) {
         await StorageService.clearDraft(inspection.value!.id);
         Get.offAllNamed('/main');
@@ -802,7 +819,10 @@ class InspectionFormController extends GetxController {
     print('Syncing ${pending.length} pending report(s)...');
     for (var i = pending.length - 1; i >= 0; i--) {
       try {
-        final response = await _api.syncReport(pending[i]);
+        final isRoutine = pending[i]['inspectionType'] == 3;
+        final response = isRoutine
+            ? await _api.syncRoutineReport(pending[i])
+            : await _api.syncReport(pending[i]);
         if (response.data['success'] == true || response.statusCode == 200) {
           await StorageService.removePendingReport(i);
           print('Pending report $i synced successfully');

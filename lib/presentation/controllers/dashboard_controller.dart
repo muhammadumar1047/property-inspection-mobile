@@ -18,8 +18,10 @@ class DashboardController extends GetxController {
 
   // Computed stats
   int get totalProperties => allInspections.length;
-  int get pendingCount => allInspections.where((i) => i.inspectionStatus == 1).length;
-  int get completedCount => allInspections.where((i) => i.inspectionStatus == 4).length;
+  int get pendingCount =>
+      allInspections.where((i) => i.inspectionStatus == 1).length;
+  int get completedCount =>
+      allInspections.where((i) => i.inspectionStatus == 4).length;
 
   List<InspectionModel> get recentActivity => allInspections.take(3).toList();
 
@@ -27,7 +29,8 @@ class DashboardController extends GetxController {
     final list = allInspections.toList();
     if (list.isEmpty) {
       weeklyData.assignAll(
-          List.generate(7, (_) => {'label': '-', 'pending': 0, 'completed': 0}));
+        List.generate(7, (_) => {'label': '-', 'pending': 0, 'completed': 0}),
+      );
       return;
     }
 
@@ -37,13 +40,16 @@ class DashboardController extends GetxController {
       final key =
           '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
       grouped.putIfAbsent(key, () => {'pending': 0, 'completed': 0});
-      if (ins.inspectionStatus == 1) grouped[key]!['pending'] = grouped[key]!['pending']! + 1;
-      if (ins.inspectionStatus == 4) grouped[key]!['completed'] = grouped[key]!['completed']! + 1;
+      if (ins.inspectionStatus == 1)
+        grouped[key]!['pending'] = grouped[key]!['pending']! + 1;
+      if (ins.inspectionStatus == 4)
+        grouped[key]!['completed'] = grouped[key]!['completed']! + 1;
     }
 
     final sortedKeys = grouped.keys.toList()..sort();
-    final recentKeys =
-        sortedKeys.length > 7 ? sortedKeys.sublist(sortedKeys.length - 7) : sortedKeys;
+    final recentKeys = sortedKeys.length > 7
+        ? sortedKeys.sublist(sortedKeys.length - 7)
+        : sortedKeys;
 
     const dayLetters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     final result = recentKeys.map((key) {
@@ -76,13 +82,16 @@ class DashboardController extends GetxController {
         final response = await _api.getInspections();
         if (response.data['success'] == true) {
           final parsed = InspectionListResponse.fromJson(response.data);
+          print('API Inspection Response: ${response.data}');
           allInspections.assignAll(parsed.data.data);
           _computeWeeklyData();
           await StorageService.saveInspections(parsed.data.data);
           isOffline.value = false;
           // Debug
           for (final ins in allInspections) {
-            print('INS: id=${ins.id} date=${ins.inspectionDate} parsedDate=${ins.parsedDate} status=${ins.inspectionStatus} isPending=${ins.isPending} isCompleted=${ins.isCompleted}');
+            print(
+              'INS: id=${ins.id} date=${ins.inspectionDate} parsedDate=${ins.parsedDate} status=${ins.inspectionStatus} isPending=${ins.isPending} isCompleted=${ins.isCompleted}',
+            );
           }
           print('weeklyData: ${weeklyData}');
         }

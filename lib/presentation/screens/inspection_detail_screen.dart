@@ -60,8 +60,8 @@ class InspectionDetailScreen extends GetView<InspectionController> {
   }
 
   Widget _buildPropertyCard(item, Color statusColor) {
+    final imageUrl = item.property?.propertyImages ?? '';
     return Container(
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(16),
@@ -70,66 +70,95 @@ class InspectionDetailScreen extends GetView<InspectionController> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  shape: BoxShape.circle,
-                ),
+          // Property image
+          if (imageUrl.isNotEmpty)
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              child: Image.network(
+                imageUrl,
+                width: double.infinity,
+                height: 180,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                loadingBuilder: (_, child, progress) => progress == null
+                    ? child
+                    : Container(
+                        height: 180,
+                        color: AppColors.surface,
+                        child: const Center(
+                          child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
+                        ),
+                      ),
               ),
-              const SizedBox(width: 12),
-              Text(
-                item.typeLabel,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
+            ),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      item.typeLabel,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        item.statusLabel,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  item.statusLabel,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    color: statusColor,
+                const SizedBox(height: 16),
+                Text(
+                  item.propertyAddress,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            item.propertyAddress,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+                if (item.propertySubhurb.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    item.propertySubhurb,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                _buildDetailRow('Inspector', item.inspectorName),
+                const SizedBox(height: 8),
+                _buildDetailRow('Type', item.typeLabel),
+              ],
             ),
           ),
-          if (item.propertySubhurb.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              item.propertySubhurb,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          _buildDetailRow('Inspector', item.inspectorName),
-          const SizedBox(height: 8),
-          _buildDetailRow('Type', item.typeLabel),
         ],
       ),
     );

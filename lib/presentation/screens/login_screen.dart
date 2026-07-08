@@ -7,6 +7,8 @@ import '../widgets/custom_button.dart';
 class LoginScreen extends GetView<AuthController> {
   const LoginScreen({super.key});
 
+  static final _passwordController = TextEditingController();
+
   @override
   Widget build(BuildContext context) {
     controller.email.value = '';
@@ -108,24 +110,7 @@ class LoginScreen extends GetView<AuthController> {
           ),
           const SizedBox(height: 16),
           Obx(
-            () => _buildTextField(
-              label: 'Password',
-              icon: Icons.lock_outline,
-              isPassword: true,
-              initialValue: '',
-              obscureText: controller.obscurePassword.value,
-              onChanged: (value) => controller.password.value = value,
-              suffixIcon: IconButton(
-                icon: Icon(
-                  controller.obscurePassword.value
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: AppColors.textSecondary,
-                  size: 20,
-                ),
-                onPressed: controller.togglePasswordVisibility,
-              ),
-            ),
+            () => _buildPasswordField(),
           ),
           const SizedBox(height: 8),
           Align(
@@ -153,6 +138,39 @@ class LoginScreen extends GetView<AuthController> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: TextField(
+        controller: _passwordController,
+        obscureText: controller.obscurePassword.value,
+        onChanged: (value) => controller.password.value = value,
+        style: const TextStyle(color: AppColors.textPrimary),
+        decoration: InputDecoration(
+          hintText: 'Password',
+          hintStyle: const TextStyle(color: AppColors.textSecondary),
+          prefixIcon: const Icon(Icons.lock_outline, color: AppColors.textSecondary, size: 20),
+          suffixIcon: IconButton(
+            icon: Icon(
+              controller.obscurePassword.value
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              color: AppColors.textSecondary,
+              size: 20,
+            ),
+            onPressed: controller.togglePasswordVisibility,
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(16),
+        ),
       ),
     );
   }

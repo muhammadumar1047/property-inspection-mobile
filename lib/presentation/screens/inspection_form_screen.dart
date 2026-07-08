@@ -36,9 +36,9 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
       _commentInputVisible[ik] = !wasVisible;
       if (!wasVisible) {
         _commentCtrl(ik).text = prefill;
-        _ctrl.filteredSuggestions.clear();
+        _ctrl.clearSuggestions(ik);
       } else {
-        _ctrl.filteredSuggestions.clear();
+        _ctrl.clearSuggestions(ik);
       }
     });
   }
@@ -49,7 +49,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
     if (text.isNotEmpty) _ctrl.addComment(aIdx, iIdx, text);
     _commentCtrl(ik).clear();
     _ctrl.stopListening();
-    _ctrl.filteredSuggestions.clear();
+    _ctrl.clearSuggestions(ik);
     setState(() => _commentInputVisible[ik] = false);
   }
 
@@ -561,7 +561,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
                   onPressed: () {
                     if (inputVisible) {
                       _ctrl.stopListening();
-                      _ctrl.filteredSuggestions.clear();
+                      _ctrl.clearSuggestions(ik);
                       _commentCtrl(ik).clear();
                       setState(() => _commentInputVisible[ik] = false);
                     } else {
@@ -627,7 +627,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
               maxLines: 3,
               minLines: 1,
-              onChanged: (val) => _ctrl.filterSuggestions(val),
+              onChanged: (val) => _ctrl.filterSuggestions(ik, val),
               decoration: InputDecoration(
                 hintText: 'Write a comment...',
                 hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 12),
@@ -648,7 +648,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
             ),
             // Suggestions
             Obx(() {
-              final sugs = _ctrl.filteredSuggestions;
+              final sugs = _ctrl.getSuggestions(ik);
               if (sugs.isEmpty) return const SizedBox.shrink();
               return Container(
                 margin: const EdgeInsets.only(top: 4),
@@ -663,7 +663,7 @@ class _InspectionFormScreenState extends State<InspectionFormScreen>
                       _commentCtrl(ik).text = s;
                       _commentCtrl(ik).selection = TextSelection.fromPosition(
                           TextPosition(offset: s.length));
-                      _ctrl.filteredSuggestions.clear();
+                      _ctrl.clearSuggestions(ik);
                       setState(() {});
                     },
                     child: Padding(

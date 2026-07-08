@@ -47,9 +47,9 @@ class InspectionListController extends GetxController {
 
   // All inspections shown in the card strip
   // Only inspections with valid coords get markers
-  List<InspectionModel> get mappableInspections => inspections.toList();
+  List<InspectionModel> get mappableInspections => filteredInspections;
 
-  List<InspectionModel> get inspectionsWithCoords => inspections
+  List<InspectionModel> get inspectionsWithCoords => filteredInspections
       .where(
         (i) =>
             i.property?.latitude != null &&
@@ -63,6 +63,15 @@ class InspectionListController extends GetxController {
     super.onInit();
     pageController = PageController(viewportFraction: 0.88);
     loadInspections();
+    // Refresh markers whenever filters change
+    ever(selectedType, (_) {
+      selectedIndex.value = 0;
+      setupMarkers();
+    });
+    ever(selectedDate, (_) {
+      selectedIndex.value = 0;
+      setupMarkers();
+    });
   }
 
   @override
@@ -122,10 +131,10 @@ class InspectionListController extends GetxController {
     _animateCameraToIndex(index);
   }
 
-  // Called when user taps a map marker — index here is from inspectionsWithCoords
+  // Called when user taps a map marker — find index in filteredInspections
   void onMarkerTapped(String inspectionId) {
-    final allList = inspections.toList();
-    final cardIndex = allList.indexWhere((i) => i.id == inspectionId);
+    final list = filteredInspections;
+    final cardIndex = list.indexWhere((i) => i.id == inspectionId);
     if (cardIndex == -1) return;
     selectedIndex.value = cardIndex;
     pageController.animateToPage(
@@ -138,7 +147,7 @@ class InspectionListController extends GetxController {
   }
 
   Future<void> _animateCameraToIndex(int index) async {
-    final list = inspections.toList();
+    final list = filteredInspections;
     if (index < 0 || index >= list.length) return;
     final lat = list[index].property?.latitude;
     final lng = list[index].property?.longitude;
@@ -153,11 +162,11 @@ class InspectionListController extends GetxController {
   }
 
   void _refreshMarkers(int selectedCardIndex) {
-    final allList = inspections.toList();
-    final selectedId = (selectedCardIndex >= 0 && selectedCardIndex < allList.length)
-        ? allList[selectedCardIndex].id
+    final list = filteredInspections;
+    final selectedId = (selectedCardIndex >= 0 && selectedCardIndex < list.length)
+        ? list[selectedCardIndex].id
         : null;
-    markers.value = allList
+    markers.value = list
         .where((e) {
           final p = e.property;
           return p?.latitude != null &&

@@ -151,6 +151,11 @@ class ApiService {
     return _dio.post('/api/ReportSync/sync', data: body, options: options);
   }
 
+  Future<Response> syncRoutineReport(Map<String, dynamic> body) async {
+    final options = await _authOptions();
+    return _dio.post('/api/ReportSync/sync-routine', data: body, options: options);
+  }
+
   Future<Response> getInspectionById(String inspectionId) async {
     final options = await _authOptions();
     return _dio.get('/api/inspection/$inspectionId', options: options);
