@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -96,8 +97,19 @@ class _SplashScreenState extends State<SplashScreen>
             Get.offAllNamed('/welcome');
             return;
           }
+        } on DioException catch (e) {
+          if (e.type == DioExceptionType.connectionTimeout ||
+              e.type == DioExceptionType.receiveTimeout ||
+              e.type == DioExceptionType.sendTimeout) {
+            await StorageService.clearSession();
+            Get.offAllNamed('/login');
+            return;
+          }
+          // Other network error → fall back to cached user
+          auth.token.value = savedToken;
+          auth.currentUser.value = savedUser;
         } catch (_) {
-          // Network/server error → fall back to cached user
+          // Unexpected error → fall back to cached user
           auth.token.value = savedToken;
           auth.currentUser.value = savedUser;
         }

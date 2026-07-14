@@ -1,6 +1,7 @@
 class AppConstants {
   static const String appName = 'EaseInspect';
-  static const String baseUrl = 'http://ec2-52-62-164-129.ap-southeast-2.compute.amazonaws.com:5000';
+  static const String baseUrl = "https://api.easeinspect.com";
+  // 'http://ec2-52-62-164-129.ap-southeast-2.compute.amazonaws.com:5000';
   // For web build
   // static const String baseUrl = "/api";
   static const double paddingSmall = 8.0;

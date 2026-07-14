@@ -129,16 +129,16 @@ class SettingsScreen extends GetView<SettingsController> {
             ),
           ),
           const SizedBox(height: 16),
-          // GestureDetector(
-          //   onTap: () => Get.toNamed('/change-password'),
-          //   child: _buildSettingItem(
-          //     'Change Password',
-          //     'Update your account password',
-          //     Icons.lock_outline,
-          //     const Icon(Icons.arrow_forward_ios, color: AppColors.textSecondary, size: 16),
-          //   ),
-          // ),
-          // _buildDivider(),
+          GestureDetector(
+            onTap: () => Get.toNamed('/change-password'),
+            child: _buildSettingItem(
+              'Change Password',
+              'Update your account password',
+              Icons.lock_outline,
+              const Icon(Icons.arrow_forward_ios, color: AppColors.textSecondary, size: 16),
+            ),
+          ),
+          _buildDivider(),
           GestureDetector(
             onTap: () => Get.toNamed('/support'),
             child: _buildSettingItem(

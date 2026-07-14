@@ -67,7 +67,19 @@ class ApiService {
     final options = token != null
         ? Options(headers: {'Authorization': 'Bearer $token'})
         : await _authOptions();
-    return _dio.get('/api/auth/profile', options: options);
+    return _dio.get('/api/profile', options: options);
+  }
+
+  Future<Response> updateProfile({
+    required String firstName,
+    required String lastName,
+  }) async {
+    final options = await _authOptions();
+    return _dio.put(
+      '/api/profile',
+      data: {'firstName': firstName, 'lastName': lastName},
+      options: options,
+    );
   }
 
   Future<Response> getQuickSuggestions({
@@ -181,6 +193,51 @@ class ApiService {
     return _dio.post(
       '/api/ReportSync/sync-routine',
       data: body,
+      options: options,
+    );
+  }
+
+  Future<void> s3Put(String url, List<int> bytes, String contentType) =>
+      _s3Dio.put(
+        url,
+        data: Stream.fromIterable(bytes.map((b) => [b])),
+        options: Options(
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': bytes.length,
+          },
+          contentType: contentType,
+          sendTimeout: const Duration(minutes: 5),
+          receiveTimeout: const Duration(minutes: 5),
+        ),
+      );
+
+  Future<Response> getProfilePhotoUploadUrl(String fileName) async {
+    final options = await _authOptions();
+    return _dio.get(
+      '/api/profile/photo/upload-url',
+      queryParameters: {'fileName': fileName},
+      options: options,
+    );
+  }
+
+  Future<Response> saveProfilePhoto(String fileKey) async {
+    final options = await _authOptions();
+    return _dio.post(
+      '/api/profile/photo',
+      data: {'fileKey': fileKey},
+      options: options,
+    );
+  }
+
+  Future<Response> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final options = await _authOptions();
+    return _dio.post(
+      '/api/profile/change-password',
+      data: {'currentPassword': currentPassword, 'newPassword': newPassword},
       options: options,
     );
   }

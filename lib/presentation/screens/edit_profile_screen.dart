@@ -46,12 +46,19 @@ class EditProfileScreen extends GetView<EditProfileController> {
       child: Stack(
         children: [
           Obx(() {
-            final path = controller.profileImagePath.value;
+            final localPath = controller.profileImagePath.value;
+            final remoteUrl = controller.profileImageUrl.value;
+            ImageProvider? image;
+            if (localPath != null) {
+              image = FileImage(File(localPath));
+            } else if (remoteUrl != null && remoteUrl.isNotEmpty) {
+              image = NetworkImage(remoteUrl);
+            }
             return CircleAvatar(
               radius: 52,
               backgroundColor: AppColors.primary,
-              backgroundImage: path != null ? FileImage(File(path)) : null,
-              child: path == null
+              backgroundImage: image,
+              child: image == null
                   ? const Icon(Icons.person, color: Colors.white, size: 52)
                   : null,
             );
@@ -59,8 +66,8 @@ class EditProfileScreen extends GetView<EditProfileController> {
           Positioned(
             bottom: 0,
             right: 0,
-            child: GestureDetector(
-              onTap: controller.pickImage,
+            child: Obx(() => GestureDetector(
+              onTap: controller.isUploadingPhoto.value ? null : controller.pickImage,
               child: Container(
                 width: 32,
                 height: 32,
@@ -69,9 +76,14 @@ class EditProfileScreen extends GetView<EditProfileController> {
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.background, width: 2),
                 ),
-                child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                child: controller.isUploadingPhoto.value
+                    ? const Padding(
+                        padding: EdgeInsets.all(6),
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Icon(Icons.camera_alt, color: Colors.white, size: 16),
               ),
-            ),
+            )),
           ),
         ],
       ),
